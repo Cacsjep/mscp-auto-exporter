@@ -1,0 +1,76 @@
+using System;
+using AutoExporter.Contracts;
+using Xunit;
+
+namespace AutoExporter.Contracts.Tests
+{
+    public class JobConfigTests
+    {
+        [Fact]
+        public void RoundTrips_AllFieldsAndTargets()
+        {
+            var job = new JobConfig
+            {
+                Name = "Nightly",
+                Enabled = false,
+                AgentHostname = "ACS01",
+                Format = "AVI",
+                Encrypt = true,
+                Password = "pw",
+                IncludePlayer = false,
+                IncludeAudio = false,
+                RangeValue = 12,
+                RangeUnit = "Hours",
+            };
+            job.Targets.Add(new JobTarget { Kind = "Camera", ObjectId = Guid.NewGuid(), Name = "Front" });
+            job.Targets.Add(new JobTarget { Kind = "Group", ObjectId = Guid.NewGuid(), Name = "Lobby" });
+
+            var loaded = JobConfig.FromProperties(job.ToProperties());
+
+            Assert.Equal("Nightly", loaded.Name);
+            Assert.False(loaded.Enabled);
+            Assert.Equal("ACS01", loaded.AgentHostname);
+            Assert.Equal("AVI", loaded.Format);
+            Assert.True(loaded.Encrypt);
+            Assert.Equal("pw", loaded.Password);
+            Assert.False(loaded.IncludePlayer);
+            Assert.False(loaded.IncludeAudio);
+            Assert.Equal(12, loaded.RangeValue);
+            Assert.Equal("Hours", loaded.RangeUnit);
+            Assert.Equal(2, loaded.Targets.Count);
+            Assert.Equal("Camera", loaded.Targets[0].Kind);
+            Assert.Equal("Front", loaded.Targets[0].Name);
+            Assert.Equal(job.Targets[1].ObjectId, loaded.Targets[1].ObjectId);
+        }
+
+        [Fact]
+        public void Defaults_WhenPropertiesEmpty()
+        {
+            var loaded = JobConfig.FromProperties(new System.Collections.Generic.Dictionary<string, string>());
+            Assert.Equal("New Job", loaded.Name);
+            Assert.True(loaded.Enabled);
+            Assert.Equal("XProtect", loaded.Format);
+            Assert.False(loaded.Encrypt);
+            Assert.Equal(1, loaded.RangeValue);
+            Assert.Equal("Days", loaded.RangeUnit);
+            Assert.Empty(loaded.Targets);
+        }
+
+        [Fact]
+        public void EnabledFlag_UsesYesNo()
+        {
+            Assert.Equal("Yes", new JobConfig { Enabled = true }.ToProperties()[JobConfig.Keys.Enabled]);
+            Assert.Equal("No", new JobConfig { Enabled = false }.ToProperties()[JobConfig.Keys.Enabled]);
+        }
+
+        [Fact]
+        public void TargetsCount_MatchesSerializedTargets()
+        {
+            var job = new JobConfig();
+            job.Targets.Add(new JobTarget { Kind = "Camera", ObjectId = Guid.NewGuid(), Name = "A" });
+            var props = job.ToProperties();
+            Assert.Equal("1", props[JobConfig.Keys.TargetsCount]);
+            Assert.Equal("A", props["Targets_0_Name"]);
+        }
+    }
+}

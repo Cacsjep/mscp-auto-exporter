@@ -1,11 +1,12 @@
 using System;
 
-namespace AutoExporter.Agent
+namespace AutoExporter.Contracts
 {
     /// <summary>
-    /// Pure time-range math (ported from the legacy plugin). Kept free of MIP types.
+    /// Pure time-range math (ported from the legacy plugin). Kept free of MIP types so it can be
+    /// shared and unit tested. A job exports "Last N [unit]" anchored at the trigger time.
     /// </summary>
-    internal static class TimeRange
+    public static class TimeRange
     {
         public static DateTime Subtract(DateTime end, int value, string unit)
         {

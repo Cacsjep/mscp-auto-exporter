@@ -21,6 +21,11 @@ namespace AutoExporter.Agent
         private AgentNode _node;
 
         private const int HeartbeatMs = 30000;
+        private const int RetryDelayMs = 20000;
+        // Consecutive failed heartbeats (each is a real round-trip to the server) before we treat
+        // the connection as lost and reconnect. 3 x 30s tolerates a brief hiccup but recovers from a
+        // management server restart or the server going offline.
+        private const int HeartbeatFailuresBeforeReconnect = 3;
 
         public void Start()
         {
@@ -50,11 +55,32 @@ namespace AutoExporter.Agent
             Log.Configure(MachineConfig.Load().LogLevel);
             Log.Info("Service identity: " + identity);
 
-            // Connect with retry: a transient failure (server still starting, brief network
-            // hiccup, "did not respond") must not park the service forever. We reload the config
-            // each attempt so a credential change picked up by the tray takes effect, and write the
-            // current result to agent.state so the tray footer always reflects reality.
-            const int RetryDelayMs = 20000;
+            // Lifecycle loop: connect (with retry), run until the connection drops or we are told to
+            // stop, then tear down and reconnect. This survives a Milestone restart, the management
+            // server going offline, and a slow boot where Milestone takes minutes to come up.
+            while (!_shutdown.IsSet)
+            {
+                if (!ConnectWithRetry(identity)) break;   // returns false only on shutdown
+                if (_shutdown.IsSet) break;
+
+                Log.Info("Agent connected.");
+                bool connectionLost = RunLoop();
+                TeardownSession(tryMarkOffline: !connectionLost);   // offline write would just block on a dead server
+
+                if (!connectionLost) break;   // clean shutdown
+                Log.Info("Connection to Milestone lost. Reconnecting.");
+                WriteState(false, identity, MachineConfig.Load(), "Connection to Milestone lost, reconnecting...");
+            }
+
+            Log.Info("MIP thread stopped.");
+        }
+
+        // Connect with retry: a transient failure (server still starting, brief network hiccup,
+        // "did not respond") must not park the service forever. We reload the config each attempt so
+        // a credential change picked up by the tray takes effect, and write the current result to
+        // agent.state so the tray footer always reflects reality. Returns false only on shutdown.
+        private bool ConnectWithRetry(string identity)
+        {
             while (!_shutdown.IsSet)
             {
                 var cfg = MachineConfig.Load();
@@ -63,7 +89,7 @@ namespace AutoExporter.Agent
                 if (string.IsNullOrWhiteSpace(cfg.ServerUrl))
                 {
                     WriteState(false, identity, cfg, "No Milestone server configured yet. Open the tray app and connect.");
-                    if (_shutdown.Wait(RetryDelayMs)) return;
+                    if (_shutdown.Wait(RetryDelayMs)) return false;
                     continue;
                 }
 
@@ -82,44 +108,56 @@ namespace AutoExporter.Agent
                     // up front rather than as a confusing export failure later.
                     var recorderWarnings = RecorderProbe.Check();
                     WriteState(true, identity, cfg, "", recorderWarnings);
-                    break;  // connected
+                    return true;
                 }
                 catch (Exception ex)
                 {
                     Log.Error("Agent login failed (will retry): " + ex);
                     WriteState(false, identity, cfg, Humanize(ex, cfg, identity));
-                    try { _session?.Dispose(); } catch { }
-                    _session = null;
-                    if (_shutdown.Wait(RetryDelayMs)) return;   // wait, then retry
+                    TeardownSession(tryMarkOffline: false);
+                    if (_shutdown.Wait(RetryDelayMs)) return false;   // wait, then retry
                 }
             }
-            if (_shutdown.IsSet) return;
+            return false;
+        }
 
-            Log.Info("Agent started.");
+        // Main work loop. Returns true if it exited because the connection was lost (so the caller
+        // reconnects), false if shutdown was requested.
+        private bool RunLoop()
+        {
             int lastBeat = Environment.TickCount;
+            int beatFailures = 0;
 
-            try
+            while (!_shutdown.IsSet)
             {
-                while (!_shutdown.IsSet)
+                while (_jobs.TryDequeue(out var req))
+                    RunJobSafe(req);
+
+                if (unchecked(Environment.TickCount - lastBeat) >= HeartbeatMs)
                 {
-                    while (_jobs.TryDequeue(out var req))
-                        RunJobSafe(req);
-
-                    if (unchecked(Environment.TickCount - lastBeat) >= HeartbeatMs)
+                    lastBeat = Environment.TickCount;
+                    if (SafeHeartbeat())
                     {
-                        SafeHeartbeat();
-                        lastBeat = Environment.TickCount;
+                        beatFailures = 0;
                     }
-
-                    Pump(250);
+                    else if (++beatFailures >= HeartbeatFailuresBeforeReconnect)
+                    {
+                        Log.Error($"Heartbeat failed {beatFailures} times in a row, treating the connection as lost.");
+                        return true;   // connection lost -> reconnect
+                    }
                 }
+
+                Pump(250);
             }
-            finally
-            {
-                try { _node?.MarkOffline(); } catch { }
-                try { _session?.Dispose(); } catch { }
-                Log.Info("MIP thread stopped.");
-            }
+            return false;   // shutdown
+        }
+
+        private void TeardownSession(bool tryMarkOffline)
+        {
+            if (tryMarkOffline) { try { _node?.MarkOffline(); } catch { } }
+            try { _session?.Dispose(); } catch { }
+            _node = null;
+            _session = null;
         }
 
         private void RunJobSafe(TriggerRequest req)
@@ -128,10 +166,11 @@ namespace AutoExporter.Agent
             catch (Exception ex) { Log.Error("RunJob failed: " + ex); }
         }
 
-        private void SafeHeartbeat()
+        // Returns true if the heartbeat round-trip to the server succeeded.
+        private bool SafeHeartbeat()
         {
-            try { _node?.Heartbeat(); }
-            catch (Exception ex) { Log.Error("Heartbeat failed: " + ex.Message); }
+            try { _node?.Heartbeat(); return true; }
+            catch (Exception ex) { Log.Error("Heartbeat failed: " + ex.Message); return false; }
         }
 
         private static string CurrentIdentity()

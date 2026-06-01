@@ -1,0 +1,54 @@
+name: Release
+
+# Build the installer and publish the MSI as a downloadable asset.
+# Push a tag like v1.0.0 to cut a release, or run it manually from the Actions tab.
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  installer:
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 9.0.x
+
+      - name: Install WiX CLI
+        shell: pwsh
+        run: |
+          dotnet tool install --global wix
+          echo "$env:USERPROFILE\.dotnet\tools" >> $env:GITHUB_PATH
+
+      - name: Build installer (Release)
+        shell: pwsh
+        run: .\build.ps1 -Component installer -Configuration Release
+
+      - name: Stage MSI with version in the name
+        shell: pwsh
+        run: |
+          $tag = if ($env:GITHUB_REF_NAME) { $env:GITHUB_REF_NAME } else { "dev" }
+          New-Item -ItemType Directory -Force dist | Out-Null
+          Copy-Item "src/AutoExporter.Installer/bin/AutoExporter.msi" "dist/AutoExporter-$tag.msi" -Force
+
+      - name: Upload MSI as a build artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: AutoExporter-msi
+          path: dist/*.msi
+
+      - name: Attach MSI to the GitHub release
+        if: startsWith(github.ref, 'refs/tags/')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: dist/*.msi
