@@ -42,6 +42,12 @@ namespace AutoExporter.AdminPlugin
             {
                 try { _jobs.SetExecutions(recs); } catch { }
             };
+
+            // Run now shows a Pending row in the Executions section immediately.
+            _jobs.RunRequested += rec =>
+            {
+                try { _executions.ShowPending(rec); } catch { }
+            };
         }
 
         private static Control Section(string title, Control content)

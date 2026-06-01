@@ -1,0 +1,109 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8" />
+<title>Auto Exporter</title>
+<style>
+  body { font-family: "Segoe UI", Arial, sans-serif; font-size: 13px; color: #222; margin: 18px 22px; }
+  h1 { font-size: 18px; margin: 0 0 6px 0; }
+  h2 { font-size: 14px; margin: 18px 0 6px 0; color: #21609e; }
+  p, li { line-height: 1.4; }
+  code { background: #f3f3f3; padding: 1px 4px; border-radius: 3px; font-family: Consolas, monospace; }
+  pre code { display: block; padding: 8px 10px; }
+  .warn { background: #fff5e6; border-left: 4px solid #d28800; padding: 10px 12px; margin: 12px 0; }
+  .warn strong { color: #a06600; }
+  .tip { background: #eef5ff; border-left: 4px solid #21609e; padding: 10px 12px; margin: 12px 0; }
+  ul { padding-left: 22px; }
+  table { border-collapse: collapse; margin: 6px 0; }
+  th, td { border: 1px solid #ddd; padding: 4px 8px; text-align: left; vertical-align: top; }
+  th { background: #f7f7f7; }
+</style>
+</head>
+<body>
+
+<h1>Auto Exporter</h1>
+<p>Automate XProtect video exports on a recurring rule or on demand, and keep them on disk within a bounded size and age. Exports are produced by a standalone agent service running on the machine that stores them.</p>
+
+<div class="tip">
+  <strong>How the pieces fit.</strong>
+  <ul>
+    <li>An <strong>agent service</strong> runs on each export machine. It signs in to Milestone and does the actual exporting.</li>
+    <li>A <strong>tray app</strong> on that machine sets the Milestone connection, the export folder, the size and age limits, and the log level.</li>
+    <li>This <strong>plugin</strong> (here in the Management Client) defines the jobs, assigns each job to an agent, and shows status. It does not export anything itself.</li>
+  </ul>
+</div>
+
+<h2>The tree</h2>
+<ul>
+  <li><strong>Overview</strong> is one page with three sections, Agents, Jobs, and Executions. The sections refresh themselves, so there is no Refresh button.</li>
+  <li><strong>Jobs</strong> is also a node so the Rules engine can target a specific job. The Jobs node and the Overview Jobs section edit the same jobs.</li>
+</ul>
+
+<h2>Agents</h2>
+<p>An agent appears here automatically once its service signs in (it registers itself by hostname). You do not add agents by hand. The Agents section shows each agent's status, version, export folder, and its size and age limits (set in that machine's tray app).</p>
+<ul>
+  <li>An agent shows <strong>Offline</strong> once it has missed several heartbeats or its service was stopped or uninstalled.</li>
+  <li>An offline agent can be removed with <strong>Remove agent</strong>. This also deletes every job assigned to that agent, so no job is left pointing at a missing agent. A live agent cannot be removed because it would just register itself again.</li>
+</ul>
+
+<h2>Set up a job</h2>
+<ol>
+  <li>Open <strong>Jobs</strong> (or the Overview Jobs section) and add a job.</li>
+  <li>Give it a name, pick the <strong>agent</strong> that runs it, choose the format (XProtect or AVI), set the time range, and add the <strong>cameras or camera groups</strong>.</li>
+  <li>Save. A job cannot be saved without a name, an agent, and at least one camera or group.</li>
+  <li>Use <strong>Run now</strong> in the Jobs section to test it, or build an XProtect Rule with the <strong>Run Auto Export Job</strong> action. Watch the <strong>Executions</strong> section for the result.</li>
+</ol>
+
+<h2>Where exports go and how long they stay</h2>
+<p>The export folder, the maximum size, and the retention in days are <strong>per agent</strong>, not per job. They are set in the agent's tray app, not here. Each job writes into its own subfolder under that export folder, and each run gets its own timestamped folder.</p>
+<pre><code>&lt;Export folder&gt;\
+  &lt;Job name&gt;\
+    28.05.2026_0300\
+      &lt;Camera name&gt;\
+        ...exported files...
+    28.05.2026_0400\
+      ...
+</code></pre>
+<p>Old runs are removed oldest first to stay under the size limit, and runs older than the retention are removed as well. A limit of <code>0</code> means unlimited.</p>
+
+<h2>Time range</h2>
+<p>Each job exports <code>Last N [Minutes, Hours, Days, or Months]</code>. The range is anchored at the moment the job runs, so the same job works for a scheduled rule, a manual Run now, or an event-driven rule.</p>
+<table>
+  <tr><th>Run time</th><th>Range</th><th>Exported window</th></tr>
+  <tr><td>2026-05-28 03:00</td><td>Last 2 Days</td><td>2026-05-26 03:00 to 2026-05-28 03:00</td></tr>
+  <tr><td>2026-05-28 14:22</td><td>Last 2 Hours</td><td>2026-05-28 12:22 to 2026-05-28 14:22</td></tr>
+</table>
+<p>Months counts as 30 days.</p>
+
+<h2>Disabled cameras</h2>
+<p>The camera picker hides disabled cameras, and the agent skips a disabled camera if it is still on a job (for example a group member that was later disabled). A disabled camera never fails the whole job. If every selected camera is disabled or has no data in the range, the run is recorded as Skipped, not Failed, with the camera names in the detail.</p>
+
+<h2>Recording server reachability</h2>
+<p>When an agent signs in, it checks that it can reach every recording server. If one cannot be reached (often bad DNS, a missing hosts entry, or a firewall), the agent's tray app warns about it. Exports for cameras on an unreachable recorder will fail until it can be reached.</p>
+
+<h2>Rule action and events</h2>
+<p>The plugin exposes one action, <strong>Run Auto Export Job</strong>, which you point at a specific job. It raises three events you can react to in rules:</p>
+<ul>
+  <li><strong>Auto Export: Job Started</strong> fires when a run begins.</li>
+  <li><strong>Auto Export: Job Succeeded</strong> fires when a run finishes.</li>
+  <li><strong>Auto Export: Job Failed</strong> fires on a hard error.</li>
+</ul>
+
+<div class="warn">
+  <strong>Password storage.</strong>
+  An export encryption password is stored in the Milestone configuration. Use encryption only where that is acceptable, and restrict configuration database access with Milestone roles. AVI does not support encryption.
+</div>
+
+<h2>Status and logs</h2>
+<p>The <strong>Executions</strong> section shows recent runs from every agent (newest first) with the outcome, camera count, size, and detail. Each agent keeps its own run history and log files under <code>%ProgramData%\MSCPlugins\AutoExporter\</code> on its machine. The tray app can open those logs.</p>
+
+<h2>Troubleshooting</h2>
+<ul>
+  <li><strong>No agent to pick when adding a job.</strong> Start the agent service on the export machine and connect it in the tray app. It will appear in Agents within a few seconds.</li>
+  <li><strong>A camera has no recordings in the range.</strong> Cameras with no data in the window are skipped. The run is recorded as Partial when some cameras still exported, or Skipped when none did, with the names in the detail. This is informational, not an error.</li>
+  <li><strong>AVI plus encryption was rejected when saving.</strong> AVI does not support encryption. Switch to XProtect or turn encryption off.</li>
+  <li><strong>A recording server is reported unreachable.</strong> Check name resolution and the firewall from the agent machine to that recorder.</li>
+</ul>
+
+</body>
+</html>

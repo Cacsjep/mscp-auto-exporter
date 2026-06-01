@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.IO;
 using System.Text;
 using AutoExporter.Contracts;
@@ -44,12 +45,14 @@ namespace AutoExporter.Agent
             var rangeStartUtc = TimeRange.Subtract(endUtc, job.RangeValue, job.RangeUnit);
 
             var cfg = _session.Config;
-            var outputBase = ResolveOutputBase(job, cfg);
-            if (string.IsNullOrWhiteSpace(outputBase))
+            // Defense in depth: the tray validates this, but config could be hand-edited or predate
+            // that check. Refuse to run rather than write to an unexpected (relative) location.
+            if (string.IsNullOrWhiteSpace(cfg.ExportFolder) || !Path.IsPathRooted(cfg.ExportFolder))
             {
-                Log.Error($"Job '{job.Name}': no agent export folder is set. Set it in the tray (General).");
+                Log.Error($"Job '{job.Name}': the agent export folder is not set or is not an absolute path ('{cfg.ExportFolder}'). Set it in the tray (General).");
                 return;
             }
+            var outputBase = ResolveOutputBase(job, cfg);
             var stamp = endUtc.ToLocalTime().ToString("dd.MM.yyyy_HHmm");
             var outputFolder = Path.Combine(outputBase, stamp);
 
@@ -59,19 +62,8 @@ namespace AutoExporter.Agent
             SendEvent(req.JobObjectId, JobEventNotice.KindStarted,
                 $"Trigger: {req.TriggerSource} | Range: {rangeStartUtc.ToLocalTime():g} to {endUtc.ToLocalTime():g}");
 
-            // 3. Pre-run ring cleanup using the agent-wide limits from the tray config.
-            var ring = RingStorage.FromGigabytes(outputBase, cfg.MaxGB, cfg.RetentionDays);
-            if (ring.IsConfigured)
-            {
-                try { ring.Prune(); }
-                catch (Exception ex) { Log.Error("Ring prune failed: " + ex.Message); }
-            }
-
-            // 4. Run the export.
-            var exporter = new Exporter(OnProgress);
-            var run = exporter.Run(job, outputFolder, rangeStartUtc, endUtc);
-
-            // 5. Record the outcome.
+            // 3. Publish a "Running" record up front so the admin Executions view shows the run
+            //    immediately (within about a second of Run now), not only when it finishes.
             var rec = new ExecutionRecord
             {
                 RunId = req.RunId == Guid.Empty ? Guid.NewGuid() : req.RunId,
@@ -79,21 +71,41 @@ namespace AutoExporter.Agent
                 JobName = job.Name,
                 AgentHostname = System.Environment.MachineName,
                 StartedUtc = startedUtc,
-                FinishedUtc = DateTime.UtcNow,
                 RangeStartUtc = rangeStartUtc,
                 RangeEndUtc = endUtc,
                 Format = job.Format,
                 Trigger = req.TriggerSource,
-                Success = run.Success,
-                Outcome = ClassifyOutcome(run.Success, run.CameraCount, run.SkippedCameras?.Count ?? 0),
-                Error = run.Error,
-                CameraCount = run.CameraCount,
-                BytesWritten = run.BytesWritten,
+                Success = false,
+                Outcome = "Running",
                 OutputFolder = outputFolder,
-                CameraNames = run.CameraNames,
-                SkippedCameras = run.SkippedCameras,
+                // Show the configured target count up front so the row is not 0 while running. The
+                // real resolved count (groups expanded, disabled skipped) replaces it when finished.
+                CameraCount = job.Targets.Count,
             };
-            ExecutionStore.Append(rec);
+            PublishRecord(rec);
+
+            // 4. Pre-run ring cleanup using the agent-wide limits from the tray config.
+            var ring = RingStorage.FromGigabytes(outputBase, cfg.MaxGB, cfg.RetentionDays);
+            if (ring.IsConfigured)
+            {
+                try { ring.Prune(); }
+                catch (Exception ex) { Log.Error("Ring prune failed: " + ex.Message); }
+            }
+
+            // 5. Run the export.
+            var exporter = new Exporter(OnProgress);
+            var run = exporter.Run(job, outputFolder, rangeStartUtc, endUtc);
+
+            // 6. Finalize the same record (same RunId, so it replaces the Running row) and publish.
+            rec.FinishedUtc = DateTime.UtcNow;
+            rec.Success = run.Success;
+            rec.Outcome = ClassifyOutcome(run.Success, run.CameraCount, run.SkippedCameras?.Count ?? 0);
+            rec.Error = run.Error;
+            rec.CameraCount = run.CameraCount;
+            rec.BytesWritten = run.BytesWritten;
+            rec.CameraNames = run.CameraNames;
+            rec.SkippedCameras = run.SkippedCameras;
+            PublishRecord(rec);
 
             if (run.Success)
             {
@@ -112,6 +124,15 @@ namespace AutoExporter.Agent
         {
             _session.SendNotice(Messages.JobEvent,
                 new JobEventNotice { JobObjectId = jobObjectId, Kind = kind, Detail = detail }.Encode());
+        }
+
+        // Persist the record and push it to the admin Executions view right away. The view merges
+        // by RunId, so the Running row is replaced in place when the finished record arrives.
+        private void PublishRecord(ExecutionRecord rec)
+        {
+            ExecutionStore.Append(rec);
+            try { _session.SendNotice(Messages.ExecutionsReply, ExecutionCodec.EncodeList(new List<ExecutionRecord> { rec })); }
+            catch (Exception ex) { Log.Error("Publish execution record failed: " + ex.Message); }
         }
 
         // Use the agent export folder with a per-job subfolder so jobs do not collide.

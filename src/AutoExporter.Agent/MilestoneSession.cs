@@ -23,6 +23,7 @@ namespace AutoExporter.Agent
         private ServerId _msgServerId;
         private object _runJobFilter;
         private object _queryFilter;
+        private object _clearFilter;
 
         // How many recent executions this agent returns to the admin Status view per query.
         private const int ReplyRecordCap = 200;
@@ -140,8 +141,10 @@ namespace AutoExporter.Agent
                 OnRunJobMessage, new CommunicationIdFilter(Messages.RunJob));
             _queryFilter = mc.RegisterCommunicationFilter(
                 OnQueryExecutions, new CommunicationIdFilter(Messages.QueryExecutions));
+            _clearFilter = mc.RegisterCommunicationFilter(
+                OnClearExecutions, new CommunicationIdFilter(Messages.ClearExecutions));
 
-            Log.Info("Subscribed to RunJob and QueryExecutions messages.");
+            Log.Info("Subscribed to RunJob, QueryExecutions and ClearExecutions messages.");
         }
 
         // The admin Status view broadcasts QueryExecutions; every agent replies with its own
@@ -157,6 +160,21 @@ namespace AutoExporter.Agent
             catch (Exception ex)
             {
                 Log.Error("QueryExecutions handling failed: " + ex.Message);
+            }
+            return null;
+        }
+
+        // The admin Executions view broadcasts ClearExecutions; every agent wipes its own history.
+        private object OnClearExecutions(Message message, FQID destination, FQID sender)
+        {
+            try
+            {
+                ExecutionStore.Clear();
+                Log.Info("Execution history cleared on admin request.");
+            }
+            catch (Exception ex)
+            {
+                Log.Error("ClearExecutions handling failed: " + ex.Message);
             }
             return null;
         }
@@ -208,6 +226,7 @@ namespace AutoExporter.Agent
                     var mc = MessageCommunicationManager.Get(_msgServerId);
                     if (_runJobFilter != null) mc?.UnRegisterCommunicationFilter(_runJobFilter);
                     if (_queryFilter != null) mc?.UnRegisterCommunicationFilter(_queryFilter);
+                    if (_clearFilter != null) mc?.UnRegisterCommunicationFilter(_clearFilter);
                 }
                 catch { }
                 try { MessageCommunicationManager.Stop(_msgServerId); } catch { }

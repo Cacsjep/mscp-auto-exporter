@@ -40,7 +40,8 @@ namespace AutoExporter.Agent
 
         /// <summary>
         /// Most recent records, newest first, capped at <paramref name="max"/>. Used to answer the
-        /// admin Status view's query over messaging.
+        /// admin Status view's query over messaging. A run is written twice (Running then the final
+        /// outcome, same RunId), so we keep only the newest line per RunId.
         /// </summary>
         public static List<ExecutionRecord> ReadRecent(int max)
         {
@@ -51,10 +52,15 @@ namespace AutoExporter.Agent
                 {
                     if (!File.Exists(Path)) return result;
                     var lines = File.ReadAllLines(Path);
+                    var seen = new HashSet<Guid>();
                     for (int i = lines.Length - 1; i >= 0 && result.Count < max; i--)
                     {
                         var rec = ExecutionCodec.Decode(lines[i].TrimEnd('\r'));
-                        if (rec != null) result.Add(rec);
+                        if (rec == null) continue;
+                        // Newest line for a RunId wins (we iterate from the end). Records without a
+                        // RunId (legacy) are never deduped.
+                        if (rec.RunId != Guid.Empty && !seen.Add(rec.RunId)) continue;
+                        result.Add(rec);
                     }
                 }
             }
@@ -63,6 +69,22 @@ namespace AutoExporter.Agent
                 Log.Error("ExecutionStore read failed: " + ex.Message);
             }
             return result;
+        }
+
+        /// <summary>Delete the execution history (admin clicked Clear in the Executions view).</summary>
+        public static void Clear()
+        {
+            try
+            {
+                lock (Gate)
+                {
+                    if (File.Exists(Path)) File.Delete(Path);
+                }
+            }
+            catch (Exception ex)
+            {
+                Log.Error("ExecutionStore clear failed: " + ex.Message);
+            }
         }
 
         private static void TrimToCap()

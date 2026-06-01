@@ -11,7 +11,7 @@ namespace AutoExporter.Tray.Services
         /// Open a folder in Explorer. Returns null on success, or a short reason the folder could
         /// not be opened (not configured, does not exist, or the shell call failed).
         /// </summary>
-        public static string OpenFolder(string path)
+        public static string? OpenFolder(string path)
         {
             if (string.IsNullOrWhiteSpace(path))
                 return "No export folder is configured yet.";

@@ -27,7 +27,8 @@ namespace AutoExporter.AdminPlugin
             MultiSelect = false,
             HideSelection = false,
         };
-        private readonly Label _status = new Label { AutoSize = true, Padding = new Padding(2, 6, 0, 0) };
+        private readonly Button _clear = new Button { Text = "Clear history", Width = 90, Height = 23 };
+        private readonly Label _status = new Label { AutoSize = true, Padding = new Padding(8, 6, 0, 0) };
         private readonly Timer _timer = new Timer { Interval = RefreshIntervalMs };
 
         // The view re-queries every few seconds so it stays live without a Refresh button.
@@ -49,6 +50,7 @@ namespace AutoExporter.AdminPlugin
         public StatusDashboardUserControl()
         {
             BuildLayout();
+            _clear.Click += (_, __) => ClearHistory();
             _timer.Tick += (_, __) => Query(reset: false);
             HandleCreated += (_, __) => { StartMessaging(); _timer.Start(); };
             HandleDestroyed += (_, __) => { _timer.Stop(); StopMessaging(); };
@@ -74,6 +76,7 @@ namespace AutoExporter.AdminPlugin
                 Height = 28,
                 FlowDirection = FlowDirection.LeftToRight,
             };
+            top.Controls.Add(_clear);
             top.Controls.Add(_status);
 
             Controls.Add(_list);
@@ -159,6 +162,34 @@ namespace AutoExporter.AdminPlugin
             return null;
         }
 
+        /// <summary>
+        /// Show a run immediately as Pending the moment the user clicks Run now, before the agent
+        /// has even picked it up. Keyed by RunId, so the agent's later Running and finished records
+        /// replace it in place.
+        /// </summary>
+        public void ShowPending(ExecutionRecord rec)
+        {
+            if (rec == null || rec.RunId == Guid.Empty) return;
+            lock (_gate)
+            {
+                _byRun[rec.RunId] = rec;
+                if (!string.IsNullOrEmpty(rec.AgentHostname)) _agents.Add(rec.AgentHostname);
+            }
+            PostRender();
+        }
+
+        // Clear the run history everywhere: tell every agent to wipe its store, and clear the view.
+        // Because the periodic re-query only adds rows, a later empty reply will not bring them back.
+        private void ClearHistory()
+        {
+            if (MessageBox.Show(this, "Clear the execution history on all agents? This cannot be undone.",
+                    "Clear history", MessageBoxButtons.YesNo, MessageBoxIcon.Warning) != DialogResult.Yes) return;
+            try { _mc?.TransmitMessage(new MipMessage(Messages.ClearExecutions, ""), null, null, null); }
+            catch (Exception ex) { PluginFileLog.Error("ClearExecutions send failed: " + ex.Message); }
+            lock (_gate) { _byRun.Clear(); _agents.Clear(); }
+            RenderList();
+        }
+
         // ----- Rendering -----
 
         private void PostRender()
@@ -215,6 +246,7 @@ namespace AutoExporter.AdminPlugin
             var outcome = (r.Outcome ?? (r.Success ? "Success" : "Failed")).ToLowerInvariant();
             if (outcome.Contains("fail")) return Color.Firebrick;
             if (outcome.Contains("partial") || outcome.Contains("skip")) return Color.DarkGoldenrod;
+            if (outcome.Contains("pending") || outcome.Contains("running")) return Color.RoyalBlue;
             return Color.ForestGreen;
         }
 

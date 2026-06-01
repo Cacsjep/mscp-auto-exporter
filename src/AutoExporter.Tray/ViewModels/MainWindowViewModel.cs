@@ -1,4 +1,5 @@
 using System;
+using System.IO;
 using System.Threading.Tasks;
 using Avalonia.Threading;
 using AutoExporter.Contracts;
@@ -33,6 +34,14 @@ namespace AutoExporter.Tray.ViewModels
         public bool ShowGeneral => SelectedNav == 0;
         public bool ShowRegistration => SelectedNav == 1;
         public bool ShowControl => SelectedNav == 2;
+
+        // ErrorMessage / StatusMessage are a shared channel across pages, so clear them when the
+        // user switches pages to avoid showing one page's message on another.
+        partial void OnSelectedNavChanged(int value)
+        {
+            ErrorMessage = null;
+            StatusMessage = "";
+        }
 
         [ObservableProperty] private string _serverUrl = "";
         [ObservableProperty]
@@ -158,6 +167,10 @@ namespace AutoExporter.Tray.ViewModels
         [RelayCommand]
         private async Task Save()
         {
+            var problem = ValidateGeneral();
+            if (problem != null) { ErrorMessage = problem; StatusMessage = ""; return; }
+            ErrorMessage = null;
+
             BuildConfig().Save();
             if (ServiceControl.Status() == "NotInstalled")
             {
@@ -167,6 +180,21 @@ namespace AutoExporter.Tray.ViewModels
             StatusMessage = "Saved. Restarting service to apply changes...";
             await Task.Run(RestartServiceIfInstalled);
             StatusMessage = "Saved. Service restarted to apply the changes.";
+        }
+
+        // Validate the General settings before saving. Returns null when all good, otherwise a
+        // message. Max size and retention are bounded by the editor (>= 0), so only the export
+        // folder needs checking: it must be a real, absolute local or UNC path the service can use.
+        private string? ValidateGeneral()
+        {
+            var folder = (ExportFolder ?? "").Trim();
+            if (folder.Length == 0)
+                return "Please set an export folder. Exports cannot run without it.";
+            if (folder.IndexOfAny(Path.GetInvalidPathChars()) >= 0)
+                return "The export folder contains invalid characters.";
+            if (!Path.IsPathRooted(folder))
+                return "The export folder must be an absolute path, for example C:\\Exports or \\\\server\\share\\Exports.";
+            return null;
         }
 
         // The service reads its config at startup, so any change (credentials or general
@@ -205,6 +233,11 @@ namespace AutoExporter.Tray.ViewModels
                 ErrorMessage = AuthMode == AuthMode.Basic
                     ? "Username is required for Basic auth."
                     : "Username is required (use DOMAIN\\user or user@domain).";
+                return;
+            }
+            if (NeedsExplicitCreds && string.IsNullOrEmpty(Password))
+            {
+                ErrorMessage = "Password is required.";
                 return;
             }
             if (ServiceControl.Status() == "NotInstalled")

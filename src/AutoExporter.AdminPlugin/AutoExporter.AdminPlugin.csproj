@@ -37,6 +37,11 @@
     <Content Include="plugin.def">
       <CopyToOutputDirectory>Always</CopyToOutputDirectory>
     </Content>
+    <!-- Help page shown when the plugin root node is selected. Copied to bin\...\Admin and from
+         there to MIPPlugins\AutoExporterV2\Admin by the deploy. -->
+    <Content Include="Admin\HelpPage.html">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
   </ItemGroup>
 
 </Project>

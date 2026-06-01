@@ -120,21 +120,32 @@ function Build-Installer {
         throw "WiX v5 CLI not found. Install it with: dotnet tool install --global wix"
     }
 
-    # Build the payloads (no service install / restart needed just to package).
+    # The UI (feature tree + license) and Util (WixQuietExec64) extensions. Adding is idempotent.
+    Write-Step "ensure WiX extensions (UI, Util)"
+    & wix extension add -g WixToolset.UI.wixext | Out-Null
+    & wix extension add -g WixToolset.Util.wixext | Out-Null
+
+    # Build all three payloads (no service install / restart needed just to package).
     Invoke-Build 'src\AutoExporter.Agent\AutoExporter.Agent.csproj'
+    Invoke-Build 'src\AutoExporter.AdminPlugin\AutoExporter.AdminPlugin.csproj'
     Build-Tray
 
-    $agentDir = Join-Path $root "src\AutoExporter.Agent\bin\$Configuration\net48"
-    $trayExe  = Join-Path $root "src\AutoExporter.Tray\bin\$Configuration\net9.0-windows\win-x64\publish\AutoExporter.Tray.exe"
-    $wxs      = Join-Path $root 'src\AutoExporter.Installer\Package.wxs'
-    $outDir   = Join-Path $root 'src\AutoExporter.Installer\bin'
-    $msi      = Join-Path $outDir 'AutoExporterAgent.msi'
+    $agentDir  = Join-Path $root "src\AutoExporter.Agent\bin\$Configuration\net48"
+    $pluginDir = Join-Path $root "src\AutoExporter.AdminPlugin\bin\$Configuration\net48"
+    $trayExe   = Join-Path $root "src\AutoExporter.Tray\bin\$Configuration\net9.0-windows\win-x64\publish\AutoExporter.Tray.exe"
+    $installerDir = Join-Path $root 'src\AutoExporter.Installer'
+    $wxs       = Join-Path $installerDir 'Package.wxs'
+    $outDir    = Join-Path $installerDir 'bin'
+    $msi       = Join-Path $outDir 'AutoExporter.msi'
 
     if (-not (Test-Path $trayExe)) { throw "tray publish not found: $trayExe" }
     New-Item -ItemType Directory -Force -Path $outDir | Out-Null
 
     Write-Step "package installer -> $msi"
-    & wix build $wxs -arch x64 -d "AgentDir=$agentDir" -d "TrayExe=$trayExe" -o $msi
+    # -bindpath lets wix resolve License.rtf (and other relative payload) from the installer folder.
+    & wix build $wxs -arch x64 -bindpath $installerDir `
+        -ext WixToolset.UI.wixext -ext WixToolset.Util.wixext `
+        -d "AgentDir=$agentDir" -d "TrayExe=$trayExe" -d "PluginDir=$pluginDir" -o $msi
     if ($LASTEXITCODE -ne 0) { throw 'wix build failed' }
     Write-Step "installer built: $msi"
 }

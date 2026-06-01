@@ -62,5 +62,13 @@ namespace AutoExporter.Contracts
 
         // agent -> admin Status view: a batch of recent executions. Data = ExecutionCodec.EncodeList.
         public const string ExecutionsReply = "AutoExporter.ExecutionsReply";
+
+        // admin Status view -> agents: clear the execution history. Data = empty (broadcast).
+        public const string ClearExecutions = "AutoExporter.ClearExecutions";
+
+        // admin -> Event Server bridge: remove an offline agent (and its jobs) server-side. The
+        // Management Client cannot write agent kind items itself, so the bridge does it. Data = the
+        // agent hostname.
+        public const string RemoveAgent = "AutoExporter.RemoveAgent";
     }
 }

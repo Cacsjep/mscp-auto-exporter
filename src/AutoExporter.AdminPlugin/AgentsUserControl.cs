@@ -5,6 +5,8 @@ using System.Linq;
 using System.Windows.Forms;
 using AutoExporter.Contracts;
 using VideoOS.Platform;
+using VideoOS.Platform.Messaging;
+using MipMessage = VideoOS.Platform.Messaging.Message;
 
 namespace AutoExporter.AdminPlugin
 {
@@ -118,12 +120,16 @@ namespace AutoExporter.AdminPlugin
             if (MessageBox.Show(this, prompt, "Remove agent",
                     MessageBoxButtons.YesNo, MessageBoxIcon.Warning) != DialogResult.Yes) return;
 
+            string directError = null;
             try
             {
                 // Delete the assigned jobs first so we do not leave jobs pointing at a missing agent.
+                // Jobs are a registered tree node kind, so the admin client can delete them directly.
                 foreach (var job in jobs)
                     Configuration.Instance.DeleteItemConfiguration(Ids.PluginId, job);
 
+                // The agent item is not a registered tree node, so the management server may reject
+                // an admin-side delete (the same Bad Request that blocks renaming). Try it anyway.
                 var objectId = AgentRegistration.ObjectIdFor(reg.Hostname);
                 var agentItem = Configuration.Instance.GetItemConfiguration(Ids.PluginId, Ids.AgentKindId, objectId);
                 if (agentItem != null)
@@ -131,10 +137,41 @@ namespace AutoExporter.AdminPlugin
             }
             catch (Exception ex)
             {
-                MessageBox.Show(this, "Could not remove the agent: " + ex.Message,
-                    "Remove agent", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                directError = ex.Message;
+                PluginFileLog.Error("Direct agent removal failed, falling back to the Event Server bridge: " + ex.Message);
+            }
+
+            // If the direct delete was rejected, ask the Event Server bridge to remove it server-side
+            // (where the write is accepted). The list updates on its own once the bridge is done.
+            if (directError != null)
+            {
+                if (TryRequestServerSideRemoval(reg.Hostname))
+                    MessageBox.Show(this,
+                        "The agent could not be removed directly, so the Event Server was asked to remove it. The list will update shortly.",
+                        "Remove agent", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                else
+                    MessageBox.Show(this, "Could not remove the agent: " + directError,
+                        "Remove agent", MessageBoxButtons.OK, MessageBoxIcon.Error);
             }
             Reload();
+        }
+
+        // Broadcast a RemoveAgent request to the Event Server bridge.
+        private static bool TryRequestServerSideRemoval(string hostname)
+        {
+            try
+            {
+                var serverId = EnvironmentManager.Instance.MasterSite.ServerId;
+                MessageCommunicationManager.Start(serverId);
+                var mc = MessageCommunicationManager.Get(serverId);
+                mc.TransmitMessage(new MipMessage(Messages.RemoveAgent, hostname), null, null, null);
+                return true;
+            }
+            catch (Exception ex)
+            {
+                PluginFileLog.Error("RemoveAgent message send failed: " + ex.Message);
+                return false;
+            }
         }
 
         // The job items (kind JobKindId) whose AgentHostname matches this agent.

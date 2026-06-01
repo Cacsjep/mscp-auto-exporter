@@ -94,5 +94,9 @@ namespace AutoExporter.AdminPlugin
 
         public override List<BackgroundPlugin> BackgroundPlugins => _backgroundPlugins;
         public override ActionManager ActionManager => _actionManager;
+
+        // Help page shown when the plugin root node ("Exporter") is selected in the tree, matching
+        // the help style of the other admin plugins. The operational UI lives under the Overview node.
+        public override UserControl GenerateUserControl() => new HtmlHelpUserControl();
     }
 }

@@ -17,7 +17,7 @@ Note on style: do not use em dashes or semicolons in prose, docs or comments.
 | `src/AutoExporter.Agent` | net48 | Windows service. Logs in to Milestone, self-registers, runs `DBExporter`/`AVIExporter` in-process, records runs. |
 | `src/AutoExporter.AdminPlugin` | net48 | MIP plugin. Overview page (Agents, Jobs, Executions), Jobs node for rules, rule action and events, Event Server bridge. |
 | `src/AutoExporter.Tray` | net9.0-windows | Avalonia config UI. Sets export folder, retention, log level and the Milestone connection, and controls the service. |
-| `src/AutoExporter.Installer` | WiX v5 | Per-machine MSI that installs the agent service plus the tray. |
+| `src/AutoExporter.Installer` | WiX v5 | Per-machine MSI with two selectable features, the Agent (service plus tray) and the Management Client plugin. |
 
 The agent and plugin are net48 because the Milestone export SDK (`DBExporter`, `AVIExporter`,
 `SequenceDataSource`) is net48. The tray is net9 Avalonia.
@@ -194,20 +194,38 @@ Deploy gotchas:
 - The **tray** publishes a single file self-contained exe. Stop a running tray first or the copy is
   locked.
 
-## Export pipeline notes
+## Installer (the MSI)
 
-- All SDK work runs on a dedicated STA thread that pumps the Win32 message loop (`AgentHost`). The
-  export pipeline and the recorder online status need a pumped loop, otherwise the recorder reads as
-  offline and `StartExport` fails.
-- `MilestoneSession.Login` order is Environment, UI, Export, then AddServerOAuth and Login, then
-  Media.
-- Login is retried every 20 seconds, so a transient failure recovers on its own. Each attempt
-  writes `agent.state` so the tray reflects reality.
-- Cameras with no recorded data in the range are skipped, not failed.
+`build.ps1 -Component installer` builds all three payloads and packages one per-machine MSI with the
+WiX v5 CLI (needs `dotnet tool install --global wix`, plus the UI and Util extensions which the
+script adds). It produces `src\AutoExporter.Installer\bin\AutoExporter.msi`.
 
-## Reference
+- Two selectable features on the feature tree: **Agent service and tray app** (install on each
+  export machine) and **Management Client plugin** (install on the management machine). Either or
+  both can be chosen.
+- Choosing the **Plugin** feature closes the Management Client and stops then starts the Event
+  Server around the file copy (the plugin DLL is locked while either runs), with `WixQuietExec64`
+  custom actions gated on the plugin feature state.
+- Choosing the **Agent** feature shows a **registration page** (server, Basic or Windows account,
+  export folder, max GB, retention days). A deferred action runs the installed agent with
+  `--configure` (as LocalSystem) to write `agent.config`, reusing the agent's own `MachineConfig`
+  writer so the format and DPAPI (LocalMachine) match what the service reads. The service is then
+  already configured and signs in on its first start. The page can be left blank to configure later
+  from the tray, and a blank server never overwrites an existing config. The password property and
+  the deferred command are marked `Hidden` so they stay out of the verbose MSI log.
+- The tray app gets a Start menu shortcut and a per-machine autostart entry
+  (`HKLM\...\CurrentVersion\Run`).
+- The agent `--configure` mode (in `Program.cs`) takes `--server= --auth= --user= --password=
+  --folder= --maxgb= --retention=` and is the contract the MSI uses. It is also usable by hand.
 
-- Legacy plugin (ported from): `G:\mscp\mscp\Admin Plugins\AutoExporter`.
-- Tray look and feel reference: `G:\mscp\mscp\installer\Mscp.PkiCertInstaller`.
-- Official MIP SDK login samples that the agent follows:
-  `https://github.com/milestonesys/mipsdk-samples-component` (ConfigAddCameras, StatusDemoConsole).
+## License and trademarks
+
+Auto Exporter is released under the MIT License (see `LICENSE` at the repo root). The same text,
+plus the disclaimer and third-party notes, is shown in the installer (`License.rtf`).
+
+This is an independent open source project and is not affiliated with, endorsed by, or supported by
+Milestone Systems. XProtect (TM) is a trademark of Milestone Systems A/S. The software uses the
+Milestone MIP SDK, which is the property of Milestone Systems A/S and is redistributed under
+Milestone's terms. The tray app bundles permissively licensed open source libraries (Avalonia,
+CommunityToolkit.Mvvm, FluentAvalonia, and Material.Icons). Use at your own risk and test in a
+non-production environment first.

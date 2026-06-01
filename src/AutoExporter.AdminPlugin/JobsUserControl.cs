@@ -67,6 +67,10 @@ namespace AutoExporter.AdminPlugin
             HandleDestroyed += (_, __) => _timer.Stop();
         }
 
+        /// <summary>Raised when the user clicks Run now, with a Pending record so the Executions
+        /// view can show the run immediately (before the agent has picked it up).</summary>
+        public event Action<ExecutionRecord> RunRequested;
+
         // Latest execution per job (JobObjectId -> record), fed from the executions view.
         private readonly Dictionary<Guid, ExecutionRecord> _latestByJob = new Dictionary<Guid, ExecutionRecord>();
 
@@ -218,8 +222,21 @@ namespace AutoExporter.AdminPlugin
                     RunId = Guid.NewGuid(),
                 };
                 mc.TransmitMessage(new MipMessage(Messages.RunJob, req.Encode()), null, null, null);
-                MessageBox.Show(this, $"Sent '{job.Name}' to agent '{job.AgentHostname}'. Watch the Executions tab.",
-                    "Run now", MessageBoxButtons.OK, MessageBoxIcon.Information);
+
+                // Show it as Pending right away. The agent's Running and finished records (same
+                // RunId) replace this row as they arrive.
+                RunRequested?.Invoke(new ExecutionRecord
+                {
+                    RunId = req.RunId,
+                    JobObjectId = item.FQID.ObjectId,
+                    JobName = job.Name,
+                    AgentHostname = job.AgentHostname,
+                    StartedUtc = DateTime.UtcNow,
+                    Trigger = "Manual",
+                    Outcome = "Pending",
+                    // Show the job's configured camera/group count instead of 0 while pending.
+                    CameraCount = job.Targets.Count,
+                });
             }
             catch (Exception ex)
             {

@@ -1,7 +1,9 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.Net.Sockets;
 using System.Text;
+using System.Threading.Tasks;
 using VideoOS.Platform;
 using VideoOS.Platform.ConfigurationItems;
 
@@ -28,7 +30,10 @@ namespace AutoExporter.Agent
         /// </summary>
         public static string Check()
         {
-            var unreachable = new List<string>();
+            // First gather the targets (this reads recorder config, which can be a few network
+            // round-trips), keeping any that cannot even be described as an immediate warning.
+            var targets = new List<Target>();
+            var prebaked = new List<string>();
             try
             {
                 var management = new ManagementServer(EnvironmentManager.Instance.MasterSite);
@@ -42,17 +47,13 @@ namespace AutoExporter.Agent
 
                         ResolveHostPort(rs, out var host, out var port);
                         if (string.IsNullOrEmpty(host))
-                        {
-                            unreachable.Add($"{name}: no address configured.");
-                            continue;
-                        }
-
-                        if (!CanConnect(host, port, out var reason))
-                            unreachable.Add($"{name} ({host}:{port}) is not reachable: {reason}");
+                            prebaked.Add($"{name}: no address configured.");
+                        else
+                            targets.Add(new Target { Name = name, Host = host, Port = port });
                     }
                     catch (Exception ex)
                     {
-                        unreachable.Add($"{name}: could not be checked ({ex.Message}).");
+                        prebaked.Add($"{name}: could not be checked ({ex.Message}).");
                     }
                 }
             }
@@ -62,6 +63,28 @@ namespace AutoExporter.Agent
                 Log.Error("Recorder probe could not list recording servers: " + ex.Message);
                 return "";
             }
+
+            // Probe the reachable-looking targets concurrently so the total time is bounded by the
+            // connect timeout, not the number of recorders (a system can have many). Each task
+            // returns its own warning (or null), so there is no shared state to race on.
+            var tasks = targets.Select(t => Task.Run(() =>
+                CanConnect(t.Host, t.Port, out var reason)
+                    ? null
+                    : $"{t.Name} ({t.Host}:{t.Port}) is not reachable: {reason}")).ToArray();
+            try
+            {
+                // Generous overall cap so a stuck DNS resolver cannot hang the service forever.
+                Task.WaitAll(tasks, ConnectTimeoutMs + 5000);
+            }
+            catch (Exception ex)
+            {
+                Log.Error("Recorder probe connect phase failed: " + ex.Message);
+            }
+
+            var unreachable = prebaked
+                .Concat(tasks.Where(t => t.Status == TaskStatus.RanToCompletion && t.Result != null)
+                             .Select(t => t.Result))
+                .ToList();
 
             if (unreachable.Count == 0)
             {
@@ -74,6 +97,13 @@ namespace AutoExporter.Agent
             var text = sb.ToString().TrimEnd();
             Log.Error("Recorder probe found unreachable recording servers:" + System.Environment.NewLine + text);
             return text;
+        }
+
+        private struct Target
+        {
+            public string Name;
+            public string Host;
+            public int Port;
         }
 
         private static bool IsEnabled(RecordingServer rs)

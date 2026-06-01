@@ -12,7 +12,7 @@ namespace AutoExporter.Tray.Views
 {
     public partial class MainWindow : Window
     {
-        private MainWindowViewModel _subscribedVm;
+        private MainWindowViewModel? _subscribedVm;
 
         public MainWindow()
         {
@@ -22,7 +22,7 @@ namespace AutoExporter.Tray.Views
         }
 
         // The view model is assigned after construction, so wire its modal-warning event here.
-        private void OnDataContextChanged(object sender, EventArgs e)
+        private void OnDataContextChanged(object? sender, EventArgs e)
         {
             if (_subscribedVm != null) _subscribedVm.RecorderWarningRaised -= OnRecorderWarning;
             _subscribedVm = DataContext as MainWindowViewModel;

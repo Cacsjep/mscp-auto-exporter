@@ -22,6 +22,7 @@ namespace AutoExporter.AdminPlugin
         private ServerId _serverId;
         private MessageCommunication _mc;
         private object _jobEventFilter;
+        private object _removeAgentFilter;
 
         public override Guid Id => Ids.BackgroundPluginId;
         public override string Name => "Auto Exporter Bridge";
@@ -39,7 +40,9 @@ namespace AutoExporter.AdminPlugin
                 _mc = MessageCommunicationManager.Get(_serverId);
                 _jobEventFilter = _mc.RegisterCommunicationFilter(
                     OnJobEvent, new CommunicationIdFilter(Messages.JobEvent));
-                PluginFileLog.Info("Bridge started; MessageCommunication ready.");
+                _removeAgentFilter = _mc.RegisterCommunicationFilter(
+                    OnRemoveAgent, new CommunicationIdFilter(Messages.RemoveAgent));
+                PluginFileLog.Info("Bridge started, MessageCommunication ready.");
             }
             catch (Exception ex)
             {
@@ -51,6 +54,7 @@ namespace AutoExporter.AdminPlugin
         {
             Instance = null;
             try { if (_jobEventFilter != null) _mc?.UnRegisterCommunicationFilter(_jobEventFilter); } catch { }
+            try { if (_removeAgentFilter != null) _mc?.UnRegisterCommunicationFilter(_removeAgentFilter); } catch { }
             try { if (_serverId != null) MessageCommunicationManager.Stop(_serverId); } catch { }
             _mc = null;
         }
@@ -69,6 +73,44 @@ namespace AutoExporter.AdminPlugin
             var msg = new Message(Messages.RunJob, req.Encode());
             _mc.TransmitMessage(msg, null, null, null);
             PluginFileLog.Info($"Sent RunJob: job={req.JobObjectId} agent='{req.AgentHostname}' run={req.RunId}");
+        }
+
+        // ----- Incoming RemoveAgent -> delete the agent item and its jobs (server-side) -----
+        //
+        // The Management Client cannot write agent kind items (the config REST layer rejects an
+        // admin-side write to a kind that is not a registered tree node). The Event Server runs
+        // server-side, where the deletion is accepted, so the admin asks the bridge to do it.
+        private object OnRemoveAgent(Message message, FQID destination, FQID sender)
+        {
+            try
+            {
+                var hostname = (message?.Data as string)?.Trim();
+                if (string.IsNullOrEmpty(hostname)) return null;
+
+                int jobs = 0;
+                var jobItems = Configuration.Instance.GetItemConfigurations(Ids.PluginId, null, Ids.JobKindId);
+                if (jobItems != null)
+                    foreach (var job in jobItems)
+                    {
+                        if (job?.Properties == null) continue;
+                        if (!string.Equals(JobConfig.FromProperties(job.Properties).AgentHostname, hostname, StringComparison.OrdinalIgnoreCase))
+                            continue;
+                        try { Configuration.Instance.DeleteItemConfiguration(Ids.PluginId, job); jobs++; }
+                        catch (Exception ex) { PluginFileLog.Error($"RemoveAgent: deleting job '{job.Name}' failed: {ex.Message}"); }
+                    }
+
+                var objectId = AgentRegistration.ObjectIdFor(hostname);
+                var agentItem = Configuration.Instance.GetItemConfiguration(Ids.PluginId, Ids.AgentKindId, objectId);
+                if (agentItem != null)
+                    Configuration.Instance.DeleteItemConfiguration(Ids.PluginId, agentItem);
+
+                PluginFileLog.Info($"RemoveAgent: removed agent '{hostname}' and {jobs} job(s).");
+            }
+            catch (Exception ex)
+            {
+                PluginFileLog.Error("OnRemoveAgent failed: " + ex.Message);
+            }
+            return null;
         }
 
         // ----- Incoming JobEvent -> raise MIP event -----
