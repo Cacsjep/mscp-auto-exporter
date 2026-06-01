@@ -1,0 +1,34 @@
+<Project>
+
+  <!--
+    Shared MSBuild properties for the Auto Exporter solution.
+    Imported automatically for every project in this tree.
+
+    The MIP plugin and the agent service target net48 (the Milestone
+    platform/export SDK is net48). The tray app targets net9 (Avalonia).
+    Each project opts into deploy behaviour via the flags below + the
+    targets in Directory.Build.targets. Dev deploy is skipped when
+    CIBuild=true (set by build.ps1).
+  -->
+
+  <PropertyGroup>
+    <LangVersion>latest</LangVersion>
+    <Nullable>disable</Nullable>
+  </PropertyGroup>
+
+  <!-- Milestone install paths (used by dev-deploy targets) -->
+  <PropertyGroup>
+    <MIPPluginsRoot>C:\Program Files\Milestone\MIPPlugins</MIPPluginsRoot>
+    <EventServerExe>C:\Program Files\Milestone\XProtect Event Server\VideoOS.Event.Server.exe</EventServerExe>
+    <AdminClientExe>C:\Program Files\Milestone\XProtect Management Client\VideoOS.Administration.exe</AdminClientExe>
+  </PropertyGroup>
+
+  <!-- Dev-deploy flags (defaults off, overridden per project) -->
+  <PropertyGroup>
+    <StopAdminClient>false</StopAdminClient>
+    <StopEventServer>false</StopEventServer>
+    <StartEventServer>false</StartEventServer>
+    <LaunchAdminClient>false</LaunchAdminClient>
+  </PropertyGroup>
+
+</Project>

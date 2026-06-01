@@ -1,0 +1,19 @@
+## Build output
+bin/
+obj/
+publish/
+artifacts/
+build/staging/
+
+## VS / Rider
+.vs/
+.idea/
+*.user
+*.suo
+
+## NuGet
+*.nupkg
+packages/
+
+## Misc
+*.log

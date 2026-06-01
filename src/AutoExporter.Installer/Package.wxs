@@ -1,0 +1,91 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Auto Exporter (V2) installer. Packages the agent Windows service and the tray app and installs
+  them per machine. Built with the WiX v5 CLI (see build.ps1 -Component installer), which passes
+  the two payload directories as preprocessor variables:
+    AgentDir : the agent net48 build output (service exe + Milestone runtime)
+    TrayExe  : the published single file tray exe
+  The admin plugin is deployed separately to the management machine (build.ps1 -Component plugin),
+  so it is intentionally not part of this package.
+-->
+<Wix xmlns="http://wixtoolset.org/schemas/v4/wxs">
+  <Package Name="Auto Exporter Agent"
+           Manufacturer="https://github.com/Cacsjep"
+           Version="1.0.0.0"
+           UpgradeCode="8F2C6D14-7A3B-4E59-9C20-1D4E6F8A2B70"
+           Scope="perMachine"
+           Compressed="yes">
+
+    <MajorUpgrade DowngradeErrorMessage="A newer version of Auto Exporter Agent is already installed." />
+    <MediaTemplate EmbedCab="yes" />
+
+    <Launch Condition="VersionNT64" Message="Auto Exporter Agent requires a 64 bit version of Windows." />
+
+    <StandardDirectory Id="ProgramFiles64Folder">
+      <Directory Id="MSCPLUGINS" Name="MSCPlugins">
+        <Directory Id="INSTALLFOLDER" Name="AutoExporterAgent">
+          <Directory Id="TRAYFOLDER" Name="Tray" />
+        </Directory>
+      </Directory>
+    </StandardDirectory>
+
+    <StandardDirectory Id="ProgramMenuFolder">
+      <Directory Id="AppShortcutDir" Name="Auto Exporter" />
+    </StandardDirectory>
+
+    <Feature Id="Main" Title="Auto Exporter Agent" Level="1">
+      <ComponentRef Id="AgentExe" />
+      <ComponentGroupRef Id="AgentRuntime" />
+      <ComponentRef Id="TrayApp" />
+    </Feature>
+  </Package>
+
+  <Fragment>
+    <!-- The service executable, registered and controlled as the AutoExporterAgent service. -->
+    <Component Id="AgentExe" Directory="INSTALLFOLDER" Bitness="always64">
+      <File Id="filAgentExe" Source="$(var.AgentDir)\AutoExporter.Agent.exe" KeyPath="yes" />
+      <ServiceInstall Id="svcInstall"
+                      Name="AutoExporterAgent"
+                      DisplayName="Auto Exporter Agent"
+                      Description="Performs Milestone XProtect exports on this machine."
+                      Type="ownProcess"
+                      Start="auto"
+                      ErrorControl="normal"
+                      Account="LocalSystem"
+                      Vital="yes" />
+      <ServiceControl Id="svcCtl"
+                      Name="AutoExporterAgent"
+                      Start="install"
+                      Stop="both"
+                      Remove="uninstall"
+                      Wait="yes" />
+    </Component>
+
+    <!-- Everything else in the agent output (Milestone runtime, config dlls), minus the exe and pdbs. -->
+    <ComponentGroup Id="AgentRuntime" Directory="INSTALLFOLDER">
+      <Files Include="$(var.AgentDir)\**">
+        <Exclude Files="$(var.AgentDir)\AutoExporter.Agent.exe" />
+        <Exclude Files="$(var.AgentDir)\**\*.pdb" />
+      </Files>
+    </ComponentGroup>
+
+    <!-- The tray app, with a Start menu shortcut and run at login for all users. -->
+    <Component Id="TrayApp" Directory="TRAYFOLDER" Bitness="always64">
+      <File Id="filTrayExe" Source="$(var.TrayExe)" KeyPath="yes" />
+
+      <Shortcut Id="scTrayStartMenu"
+                Directory="AppShortcutDir"
+                Name="Auto Exporter Agent"
+                Description="Configure and control the Auto Exporter Agent service"
+                Target="[#filTrayExe]"
+                WorkingDirectory="TRAYFOLDER" />
+      <RemoveFolder Id="rmAppShortcutDir" Directory="AppShortcutDir" On="uninstall" />
+
+      <RegistryValue Root="HKLM"
+                     Key="Software\Microsoft\Windows\CurrentVersion\Run"
+                     Name="AutoExporterTray"
+                     Type="string"
+                     Value="&quot;[#filTrayExe]&quot;" />
+    </Component>
+  </Fragment>
+</Wix>

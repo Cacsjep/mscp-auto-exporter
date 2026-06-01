@@ -1,0 +1,4 @@
+<plugin>
+   <file name="AutoExporter.AdminPlugin.dll"/>
+   <load env="Administration, Service"/>
+</plugin>

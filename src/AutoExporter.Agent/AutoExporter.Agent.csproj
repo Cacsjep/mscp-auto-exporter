@@ -1,0 +1,38 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net48</TargetFramework>
+    <OutputType>Exe</OutputType>
+    <RootNamespace>AutoExporter.Agent</RootNamespace>
+    <AssemblyName>AutoExporter.Agent</AssemblyName>
+    <RuntimeIdentifier>win-x64</RuntimeIdentifier>
+    <AppendRuntimeIdentifierToOutputPath>false</AppendRuntimeIdentifierToOutputPath>
+    <!-- Standalone service: it loads the Milestone SDK itself, so keep the runtime next to the exe -->
+    <KeepMilestoneRuntime>true</KeepMilestoneRuntime>
+    <UseWindowsForms>false</UseWindowsForms>
+    <!-- Do NOT pin or binding-redirect System.Text.Json here. The Milestone SDK and its
+         IdentityModel / Azure dependencies are tested against the System.Text.Json version they
+         ship (8.0.5), and the standalone service loads the DLLs copied next to the exe. Forcing
+         9.0.0 with binding redirects broke IDP token serialization (FormatToken) so login failed
+         with 401. The transitive conflict is benign (resolves to the shipped 8.0.5), so we only
+         demote the MSB3277 warning to a message rather than change the resolved version. -->
+    <MSBuildWarningsAsMessages>MSB3277</MSBuildWarningsAsMessages>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="MilestoneSystems.VideoOS.Platform" Version="*-*" />
+    <PackageReference Include="MilestoneSystems.VideoOS.Platform.SDK" Version="*-*" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Reference Include="System.ServiceProcess" />
+    <Reference Include="System.Configuration.Install" />
+    <!-- Application.DoEvents pumps the Win32 message loop the export pipeline needs -->
+    <Reference Include="System.Windows.Forms" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\AutoExporter.Contracts\AutoExporter.Contracts.csproj" />
+  </ItemGroup>
+
+</Project>

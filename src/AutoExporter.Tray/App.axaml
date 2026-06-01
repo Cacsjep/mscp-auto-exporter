@@ -1,0 +1,67 @@
+<Application xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:sty="using:FluentAvalonia.Styling"
+             xmlns:mi="using:Material.Icons.Avalonia"
+             x:Class="AutoExporter.Tray.App"
+             RequestedThemeVariant="Dark">
+
+  <Application.Resources>
+    <ResourceDictionary>
+      <ResourceDictionary.ThemeDictionaries>
+        <!-- Milestone brand blue, so every Classes="accent" control matches the VMS look. -->
+        <ResourceDictionary x:Key="Dark">
+          <Color x:Key="SystemAccentColor">#FF0099DA</Color>
+          <Color x:Key="SystemAccentColorDark1">#FF0085BE</Color>
+          <Color x:Key="SystemAccentColorDark2">#FF0072A2</Color>
+          <Color x:Key="SystemAccentColorDark3">#FF005E86</Color>
+          <Color x:Key="SystemAccentColorLight1">#FF1FA9E2</Color>
+          <Color x:Key="SystemAccentColorLight2">#FF40B7E8</Color>
+          <Color x:Key="SystemAccentColorLight3">#FF66C7EE</Color>
+        </ResourceDictionary>
+      </ResourceDictionary.ThemeDictionaries>
+    </ResourceDictionary>
+  </Application.Resources>
+
+  <Application.Styles>
+    <sty:FluentAvaloniaTheme />
+    <mi:MaterialIconStyles />
+
+    <!-- White text on accent buttons (Fluent would otherwise pick black on Milestone blue). -->
+    <Style Selector="Button.accent">
+      <Setter Property="Foreground" Value="White" />
+    </Style>
+    <Style Selector="Button.accent /template/ ContentPresenter#PART_ContentPresenter">
+      <Setter Property="Foreground" Value="White" />
+    </Style>
+
+    <!-- Left navigation list, styled like the Milestone Server Configurator (dark). -->
+    <Style Selector="ListBox.nav">
+      <Setter Property="Background" Value="Transparent" />
+      <Setter Property="Padding" Value="0" />
+    </Style>
+    <Style Selector="ListBox.nav ListBoxItem">
+      <Setter Property="Padding" Value="18,12" />
+      <Setter Property="Margin" Value="0" />
+      <Setter Property="CornerRadius" Value="0" />
+      <Setter Property="FontSize" Value="13" />
+      <Setter Property="Foreground" Value="#C7CEDB" />
+      <Setter Property="BorderThickness" Value="3,0,0,0" />
+      <Setter Property="BorderBrush" Value="Transparent" />
+    </Style>
+    <Style Selector="ListBox.nav ListBoxItem:pointerover /template/ ContentPresenter">
+      <Setter Property="Background" Value="#1E222B" />
+    </Style>
+    <Style Selector="ListBox.nav ListBoxItem:selected">
+      <Setter Property="Foreground" Value="White" />
+      <Setter Property="BorderBrush" Value="#0099DA" />
+    </Style>
+    <Style Selector="ListBox.nav ListBoxItem:selected /template/ ContentPresenter">
+      <Setter Property="Background" Value="#232733" />
+      <Setter Property="TextElement.Foreground" Value="White" />
+    </Style>
+    <Style Selector="ListBox.nav ListBoxItem:selected:pointerover /template/ ContentPresenter">
+      <Setter Property="Background" Value="#232733" />
+    </Style>
+  </Application.Styles>
+
+</Application>

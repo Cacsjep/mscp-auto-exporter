@@ -1,0 +1,198 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:vm="using:AutoExporter.Tray.ViewModels"
+        xmlns:fa="using:FluentAvalonia.UI.Controls"
+        xmlns:mi="using:Material.Icons.Avalonia"
+        x:Class="AutoExporter.Tray.Views.MainWindow"
+        x:DataType="vm:MainWindowViewModel"
+        Width="760" Height="600"
+        CanResize="False"
+        Background="#0F1115"
+        Title="Auto Exporter Agent"
+        WindowStartupLocation="CenterScreen">
+
+  <Grid ColumnDefinitions="210,*" RowDefinitions="*,Auto">
+
+    <!-- Left navigation -->
+    <Border Grid.Row="0" Grid.Column="0" Background="#15181F" BorderBrush="#23262E" BorderThickness="0,0,1,0">
+      <ListBox Classes="nav" SelectedIndex="{Binding SelectedNav, Mode=TwoWay}" VerticalAlignment="Top" Margin="0,14,0,0">
+        <ListBoxItem Content="General" />
+        <ListBoxItem Content="Registration" />
+        <ListBoxItem Content="Control" />
+      </ListBox>
+    </Border>
+
+    <!-- Content -->
+    <Border Grid.Row="0" Grid.Column="1" Background="#1A1D24">
+      <ScrollViewer Padding="36,30,36,28">
+       <Grid>
+
+        <!-- ============================ GENERAL ============================ -->
+        <StackPanel Spacing="16" IsVisible="{Binding ShowGeneral}">
+          <StackPanel Spacing="6">
+            <TextBlock Text="General" FontSize="22" FontWeight="SemiBold" Foreground="#E6E9EF" />
+            <TextBlock Text="Where exports are written, how much history is kept, and how much the service logs."
+                       Foreground="#8A93A6" FontSize="12" TextWrapping="Wrap" />
+          </StackPanel>
+
+          <StackPanel Spacing="4">
+            <TextBlock Text="Export folder" Foreground="#8A93A6" FontSize="12" />
+            <Grid ColumnDefinitions="*,8,Auto,8,Auto">
+              <TextBox Grid.Column="0" Text="{Binding ExportFolder}" Watermark="C:\Exports or \\server\share\Exports" />
+              <Button Grid.Column="2" Content="Browse..." Click="OnBrowseExportFolder" />
+              <Button Grid.Column="4" Content="Open folder" Command="{Binding OpenExportFolderCommand}" />
+            </Grid>
+          </StackPanel>
+
+          <Grid ColumnDefinitions="*,12,*">
+            <StackPanel Grid.Column="0" Spacing="4">
+              <TextBlock Text="Max size (GB), 0 = unlimited" Foreground="#8A93A6" FontSize="12" />
+              <NumericUpDown Value="{Binding MaxGB}" Minimum="0" Increment="1" FormatString="0" HorizontalAlignment="Stretch" />
+            </StackPanel>
+            <StackPanel Grid.Column="2" Spacing="4">
+              <TextBlock Text="Retention (days), 0 = unlimited" Foreground="#8A93A6" FontSize="12" />
+              <NumericUpDown Value="{Binding RetentionDays}" Minimum="0" Increment="1" FormatString="0" HorizontalAlignment="Stretch" />
+            </StackPanel>
+          </Grid>
+
+          <StackPanel Spacing="4" Width="220" HorizontalAlignment="Left">
+            <TextBlock Text="Log level" Foreground="#8A93A6" FontSize="12" />
+            <ComboBox ItemsSource="{Binding LogLevels}" SelectedItem="{Binding LogLevel}" HorizontalAlignment="Stretch" />
+          </StackPanel>
+
+          <Button Content="Save" Command="{Binding SaveCommand}" Classes="accent" Width="120" Height="34" HorizontalAlignment="Left" Margin="0,4,0,0" />
+          <TextBlock Text="{Binding StatusMessage}" Foreground="#7FB069" TextWrapping="Wrap" FontSize="12" />
+        </StackPanel>
+
+        <!-- ========================== REGISTRATION ========================== -->
+        <StackPanel Spacing="16" IsVisible="{Binding ShowRegistration}">
+          <StackPanel Spacing="6">
+            <TextBlock Text="Server Registration" FontSize="22" FontWeight="SemiBold" Foreground="#E6E9EF" />
+            <TextBlock Text="Register this agent with the Management Server. The service signs in to Milestone with the credentials below and then appears under Exporter, Agents in the Management Client."
+                       Foreground="#8A93A6" FontSize="12" TextWrapping="Wrap" />
+          </StackPanel>
+
+          <!-- Connected summary (after a successful login) -->
+          <StackPanel Spacing="8" IsVisible="{Binding ShowConnectionSummary}">
+            <Border Background="#16331F" BorderBrush="#2C6B3F" BorderThickness="1" CornerRadius="4" Padding="12,10">
+              <StackPanel Spacing="3">
+                <TextBlock Text="Connected" Foreground="#7FB069" FontWeight="SemiBold" />
+                <TextBlock Text="{Binding ServerUrl}" Foreground="#C7CEDB" FontSize="12" TextWrapping="Wrap" />
+                <TextBlock Text="{Binding AuthSummary}" Foreground="#8A93A6" FontSize="11" TextWrapping="Wrap" />
+              </StackPanel>
+            </Border>
+            <!-- Recorder reachability warning (DNS / hosts / firewall) -->
+            <Border IsVisible="{Binding HasRecorderWarning}"
+                    Background="#3A2F12" BorderBrush="#7A6320" BorderThickness="1" CornerRadius="4" Padding="12,10">
+              <StackPanel Spacing="4">
+                <TextBlock Text="Some recording servers are not reachable from this machine" Foreground="#E8C56B" FontWeight="SemiBold" TextWrapping="Wrap" />
+                <TextBlock Text="{Binding RecorderWarning}" Foreground="#D8C79A" FontSize="11" TextWrapping="Wrap" />
+                <TextBlock Text="Exports for cameras on these servers will fail until they can be reached. Check DNS, the hosts file, and the firewall."
+                           Foreground="#A99A6F" FontSize="11" TextWrapping="Wrap" />
+              </StackPanel>
+            </Border>
+
+            <Button Content="Change Server Registration" Command="{Binding ChangeRegistrationCommand}"
+                    HorizontalAlignment="Left" Height="34" />
+          </StackPanel>
+
+          <!-- Editor -->
+          <StackPanel Spacing="16" IsVisible="{Binding ShowConnectionEditor}">
+            <StackPanel Spacing="4">
+              <TextBlock Text="Management server" Foreground="#8A93A6" FontSize="12" />
+              <TextBox Text="{Binding ServerUrl}" Watermark="mgmt.example.local or 10.0.0.5:8443" />
+              <TextBlock Text="Hostname or IP, optional :port. https:// is added automatically."
+                         Foreground="#5F6878" FontSize="11" TextWrapping="Wrap" />
+            </StackPanel>
+
+            <StackPanel Spacing="4">
+              <TextBlock Text="Authentication" Foreground="#8A93A6" FontSize="12" />
+              <RadioButton GroupName="auth" Content="Basic user"
+                           IsChecked="{Binding AuthMode, Mode=TwoWay, Converter={x:Static vm:EnumToBoolConverter.Instance}, ConverterParameter=Basic}" />
+              <RadioButton GroupName="auth" Content="Windows user"
+                           IsChecked="{Binding AuthMode, Mode=TwoWay, Converter={x:Static vm:EnumToBoolConverter.Instance}, ConverterParameter=WindowsOtherUser}" />
+              <TextBlock Text="The service runs as Local System and signs in to Milestone with the credentials below."
+                         Foreground="#5F6878" FontSize="11" TextWrapping="Wrap" />
+            </StackPanel>
+
+            <StackPanel Spacing="6" IsVisible="{Binding NeedsExplicitCreds}">
+              <TextBlock Text="Username" Foreground="#8A93A6" FontSize="11" />
+              <TextBox Text="{Binding Username}" Watermark="user@domain or DOMAIN\user" />
+              <TextBlock Text="Password" Foreground="#8A93A6" FontSize="11" Margin="0,4,0,0" />
+              <TextBox Text="{Binding Password}" PasswordChar="{Binding PasswordChar}" Watermark="•••">
+                <TextBox.InnerRightContent>
+                  <ToggleButton IsChecked="{Binding ShowPassword, Mode=TwoWay}" Background="Transparent"
+                                BorderThickness="0" Padding="6" Margin="0,0,2,0" ToolTip.Tip="Show password">
+                    <Panel>
+                      <mi:MaterialIcon Kind="Eye" Width="16" Height="16" IsVisible="{Binding !ShowPassword}" />
+                      <mi:MaterialIcon Kind="EyeOff" Width="16" Height="16" IsVisible="{Binding ShowPassword}" />
+                    </Panel>
+                  </ToggleButton>
+                </TextBox.InnerRightContent>
+              </TextBox>
+            </StackPanel>
+
+            <Button Command="{Binding ConnectCommand}" IsEnabled="{Binding !IsBusy}"
+                    HorizontalAlignment="Left" Width="180" Height="38" Classes="accent">
+              <StackPanel Orientation="Horizontal" Spacing="8" HorizontalAlignment="Center" VerticalAlignment="Center">
+                <fa:ProgressRing IsActive="True" Width="16" Height="16" Foreground="White" IsVisible="{Binding IsBusy}" />
+                <TextBlock Text="{Binding IsBusy, Converter={x:Static vm:BusyConverter.Instance}}" VerticalAlignment="Center" />
+              </StackPanel>
+            </Button>
+
+            <TextBlock Text="{Binding ErrorMessage}" Foreground="#E06363"
+                       IsVisible="{Binding ErrorMessage, Converter={x:Static StringConverters.IsNotNullOrEmpty}}"
+                       TextWrapping="Wrap" FontSize="11" />
+          </StackPanel>
+        </StackPanel>
+
+        <!-- ============================ CONTROL ============================ -->
+        <StackPanel Spacing="16" IsVisible="{Binding ShowControl}">
+          <StackPanel Spacing="6">
+            <TextBlock Text="Control" FontSize="22" FontWeight="SemiBold" Foreground="#E6E9EF" />
+            <TextBlock Text="Start, stop or restart the agent service, and open the log files."
+                       Foreground="#8A93A6" FontSize="12" TextWrapping="Wrap" />
+          </StackPanel>
+
+          <StackPanel Orientation="Horizontal" Spacing="10">
+            <TextBlock Text="Service:" VerticalAlignment="Center" Foreground="#C7CEDB" />
+            <TextBlock Text="{Binding ServiceStatus}" FontWeight="SemiBold" VerticalAlignment="Center" Foreground="#E6E9EF" />
+            <Button Content="Refresh" Command="{Binding RefreshServiceStatusCommand}" />
+          </StackPanel>
+
+          <StackPanel Orientation="Horizontal" Spacing="10">
+            <Button Content="Start" Command="{Binding StartServiceCommand}" />
+            <Button Content="Stop" Command="{Binding StopServiceCommand}" />
+            <Button Content="Restart" Command="{Binding RestartServiceCommand}" />
+          </StackPanel>
+
+          <Border BorderThickness="0,1,0,0" BorderBrush="#272D3A" Margin="0,2" />
+
+          <StackPanel Spacing="6">
+            <TextBlock Text="Logs" Foreground="#8A93A6" FontSize="12" />
+            <StackPanel Orientation="Horizontal" Spacing="10">
+              <Button Content="Open service log" Command="{Binding OpenServiceLogCommand}" />
+              <Button Content="Open tray log" Command="{Binding OpenTrayLogCommand}" />
+            </StackPanel>
+          </StackPanel>
+
+          <TextBlock Text="{Binding StatusMessage}" Foreground="#7FB069" TextWrapping="Wrap" FontSize="12" />
+        </StackPanel>
+
+       </Grid>
+      </ScrollViewer>
+    </Border>
+
+    <!-- Always-visible error footer (any page) -->
+    <Border Grid.Row="1" Grid.Column="0" Grid.ColumnSpan="2"
+            IsVisible="{Binding HasFooterError}"
+            Background="#3A1B1B" BorderBrush="#5A2A2A" BorderThickness="0,1,0,0" Padding="16,9">
+      <StackPanel Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
+        <TextBlock Text="&#xf071;" FontFamily="avares://AutoExporter.Tray/Assets/Fonts/fa-solid-900.otf#Font Awesome 5 Free Solid"
+                   Foreground="#F2A0A0" FontSize="13" VerticalAlignment="Center" />
+        <TextBlock Text="{Binding FooterError}" Foreground="#F2A0A0" FontSize="12"
+                   TextWrapping="Wrap" VerticalAlignment="Center" />
+      </StackPanel>
+    </Border>
+  </Grid>
+</Window>

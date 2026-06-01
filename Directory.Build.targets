@@ -1,0 +1,52 @@
+<Project>
+
+  <!-- Compute MIPPluginDir from PluginName (PluginName is set in the plugin .csproj) -->
+  <PropertyGroup Condition="'$(PluginName)' != '' and '$(MIPPluginDir)' == ''">
+    <MIPPluginDir>$(MIPPluginsRoot)\$(PluginName)\</MIPPluginDir>
+  </PropertyGroup>
+
+  <!--
+    Milestone SDK NuGet packages copy ~240 MB of native deps to output via
+    None+CopyToOutputDirectory. MIP-hosted plugins must NOT ship those (already
+    on the target machine). Standalone EXEs that load the SDK themselves (the
+    agent service) DO need the runtime alongside the EXE, so they set
+    <KeepMilestoneRuntime>true</KeepMilestoneRuntime> to opt out of this strip.
+  -->
+  <Target Name="RemoveMilestoneFromOutput" BeforeTargets="AssignTargetPaths;ResolveAssemblyReferences"
+          Condition="'$(KeepMilestoneRuntime)' != 'true'">
+    <ItemGroup>
+      <None Remove="@(None)"
+        Condition="$([System.String]::new('%(FullPath)').Contains('.nuget\packages\milestonesystems.'))" />
+      <ReferenceCopyLocalPaths Remove="@(ReferenceCopyLocalPaths)"
+        Condition="'%(ReferenceCopyLocalPaths.NuGetPackageId)' != '' and $([System.String]::new('%(ReferenceCopyLocalPaths.NuGetPackageId)').StartsWith('MilestoneSystems'))" />
+    </ItemGroup>
+  </Target>
+
+  <!-- ===== Pre-build: stop processes to unlock DLLs (dev only) ===== -->
+  <Target Name="MIPStopProcesses" BeforeTargets="Build"
+          Condition="'$(CIBuild)' != 'true'">
+    <Exec Command="taskkill /F /IM VideoOS.Administration.exe 2&gt;nul"
+          Condition="'$(StopAdminClient)' == 'true'" IgnoreExitCode="true"/>
+    <Exec Command="net stop MilestoneEventServerService 2&gt;nul"
+          Condition="'$(StopEventServer)' == 'true'" IgnoreExitCode="true"/>
+    <Exec Command="ping -n 4 127.0.0.1 &gt;nul" IgnoreExitCode="true"
+          Condition="'$(StopAdminClient)' == 'true' or '$(StopEventServer)' == 'true'"/>
+  </Target>
+
+  <!-- ===== Post-build: copy plugin output to MIPPlugins (dev only) ===== -->
+  <Target Name="MIPDeploy" AfterTargets="Build"
+          Condition="'$(CIBuild)' != 'true' and '$(PluginName)' != ''">
+    <Exec Command="if not exist &quot;$(MIPPluginDir)&quot; mkdir &quot;$(MIPPluginDir)&quot;"/>
+    <Exec Command="xcopy /Y /E &quot;$(TargetDir)*.*&quot; &quot;$(MIPPluginDir)&quot;"/>
+  </Target>
+
+  <!-- ===== Post-deploy: restart services / launch apps (dev only) ===== -->
+  <Target Name="MIPLaunch" AfterTargets="Build" DependsOnTargets="MIPDeploy"
+          Condition="'$(CIBuild)' != 'true'">
+    <Exec Command="net start MilestoneEventServerService 2&gt;nul"
+          Condition="'$(StartEventServer)' == 'true'" IgnoreExitCode="true"/>
+    <Exec Command="start &quot;&quot; &quot;$(AdminClientExe)&quot;"
+          Condition="'$(LaunchAdminClient)' == 'true'" IgnoreExitCode="true"/>
+  </Target>
+
+</Project>

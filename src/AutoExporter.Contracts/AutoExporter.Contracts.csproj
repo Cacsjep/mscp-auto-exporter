@@ -1,0 +1,15 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <!-- netstandard2.0 so both the net48 plugin/agent and the net9 tray can reference it -->
+    <TargetFramework>netstandard2.0</TargetFramework>
+    <RootNamespace>AutoExporter.Contracts</RootNamespace>
+    <AssemblyName>AutoExporter.Contracts</AssemblyName>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!-- DPAPI for the credential field in the machine config (Windows-only consumers) -->
+    <PackageReference Include="System.Security.Cryptography.ProtectedData" Version="9.0.0" />
+  </ItemGroup>
+
+</Project>
