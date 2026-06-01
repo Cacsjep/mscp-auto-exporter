@@ -40,6 +40,8 @@ namespace AutoExporter.AdminPlugin
         public override void Init()
         {
             var env = EnvironmentManager.Instance.EnvironmentType;
+            PluginFileLog.Info(Diagnostics.Banner("Auto Exporter Plugin", typeof(AutoExporterPluginDefinition).Assembly)
+                               + " env=" + env);
 
             // Render the icon only in the Management Client (the Service env has no need for it).
             if (env != EnvironmentType.Service)

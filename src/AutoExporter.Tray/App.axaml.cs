@@ -24,6 +24,7 @@ namespace AutoExporter.Tray
 
         public override void OnFrameworkInitializationCompleted()
         {
+            Log.Info(Diagnostics.Banner("Auto Exporter Tray", typeof(App).Assembly));
             if (ApplicationLifetime is IClassicDesktopStyleApplicationLifetime desktop)
             {
                 // This is a tray app: it lives in the notification area and has no main window.

@@ -41,6 +41,11 @@ namespace AutoExporter.Agent
             // Only require HTTPS when the configured scheme is HTTPS (pre-2021R1 / plain HTTP -> false).
             bool secureOnly = string.Equals(ServerUri.Scheme, Uri.UriSchemeHttps, StringComparison.OrdinalIgnoreCase);
 
+            // Log the exact endpoint so a "server not found" is debuggable: it shows the scheme and
+            // port actually used (port defaults to 443 for https, 80 for http when none was given).
+            Log.Info($"Connecting to management server {ServerUri.Scheme}://{ServerUri.Host}:{ServerUri.Port} " +
+                     $"(from '{Config.ServerUrl}', secureOnly={secureOnly}).");
+
             // Init order mirrors the SDK samples: Environment -> UI -> Export, then add the OAuth
             // server + Login, then Media. Export must init before Login so the export pipeline has
             // the recorder hooks it needs.

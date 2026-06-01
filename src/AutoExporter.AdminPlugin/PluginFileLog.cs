@@ -20,6 +20,9 @@ namespace AutoExporter.AdminPlugin
         public static void Info(string msg)  => Write("INFO", msg);
         public static void Error(string msg) => Write("ERR ", msg);
 
+        // Log the full exception (type + stack) so a GitHub issue has what we need.
+        public static void Error(string msg, Exception ex) => Write("ERR ", msg + Environment.NewLine + ex);
+
         private static void Write(string level, string msg)
         {
             try

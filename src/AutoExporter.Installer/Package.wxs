@@ -54,6 +54,16 @@
     <Property Id="AGENT_RETENTION" Secure="yes" Value="0" />
     <Property Id="CA_WriteAgentConfig" Hidden="yes" />
 
+    <!-- Offer to launch the tray from the finish page (checked by default). The checkbox only
+         appears when the Agent feature is installed (the text is set conditionally below). The
+         launch runs impersonated so the tray lands in the installing user's notification area. -->
+    <Property Id="WIXUI_EXITDIALOGOPTIONALCHECKBOX" Value="1" />
+    <Property Id="WixShellExecTarget" Value="[#filTrayExe]" />
+    <CustomAction Id="LaunchTray" BinaryRef="Wix4UtilCA_X86" DllEntry="WixShellExec"
+                  Execute="immediate" Impersonate="yes" Return="ignore" />
+    <SetProperty Id="WIXUI_EXITDIALOGOPTIONALCHECKBOXTEXT" Value="Launch the Auto Exporter tray now"
+                 After="CostFinalize" Sequence="ui" Condition="&amp;FeatureAgent=3" />
+
     <!-- ════════════════ Directories ════════════════ -->
     <StandardDirectory Id="ProgramFiles64Folder">
       <!-- Agent + tray -->
@@ -73,6 +83,8 @@
     <StandardDirectory Id="ProgramMenuFolder">
       <Directory Id="AppShortcutDir" Name="Auto Exporter" />
     </StandardDirectory>
+
+    <StandardDirectory Id="DesktopFolder" />
 
     <!-- ════════════════ Features ════════════════ -->
     <Feature Id="FeatureAgent" Title="Agent service and tray app"
@@ -216,6 +228,11 @@
                Value="AgentConfigDlg" Order="10" Condition="&amp;FeatureAgent=3" />
       <Publish Dialog="VerifyReadyDlg" Control="Back" Event="NewDialog"
                Value="AgentConfigDlg" Order="10" Condition="&amp;FeatureAgent=3" />
+
+      <!-- Launch the tray when the user clicks Finish, if they left the box checked and the Agent
+           feature was actually installed in this run. -->
+      <Publish Dialog="ExitDialog" Control="Finish" Event="DoAction" Value="LaunchTray"
+               Condition="WIXUI_EXITDIALOGOPTIONALCHECKBOX = 1 AND NOT Installed AND &amp;FeatureAgent=3" />
     </UI>
   </Package>
 
@@ -259,6 +276,14 @@
                 Target="[#filTrayExe]"
                 WorkingDirectory="TRAYFOLDER" />
       <RemoveFolder Id="rmAppShortcutDir" Directory="AppShortcutDir" On="uninstall" />
+
+      <!-- Desktop shortcut so the user finds it without digging into the Start menu. -->
+      <Shortcut Id="scTrayDesktop"
+                Directory="DesktopFolder"
+                Name="Auto Exporter Agent"
+                Description="Configure and control the Auto Exporter Agent service"
+                Target="[#filTrayExe]"
+                WorkingDirectory="TRAYFOLDER" />
 
       <RegistryValue Root="HKLM"
                      Key="Software\Microsoft\Windows\CurrentVersion\Run"

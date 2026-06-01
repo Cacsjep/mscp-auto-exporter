@@ -10,8 +10,10 @@ namespace AutoExporter.Contracts
     /// </summary>
     public static class LogRotation
     {
-        public const long DefaultMaxBytes = 2 * 1024 * 1024;   // 2 MB per file
-        public const int DefaultBackups = 2;                   // name.1 + name.2
+        // We always log verbosely, so the cap is generous but bounded: a 10 MB active file plus 4
+        // rolled backups is at most ~50 MB per log, which keeps detail without filling the disk.
+        public const long DefaultMaxBytes = 10 * 1024 * 1024;  // 10 MB per file
+        public const int DefaultBackups = 4;                   // name.1 .. name.4 (~50 MB total)
 
         public static void RollIfNeeded(string path, long maxBytes = DefaultMaxBytes, int backups = DefaultBackups)
         {

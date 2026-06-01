@@ -52,7 +52,7 @@ namespace AutoExporter.Agent
             RuntimeArming.Arm();
 
             var identity = CurrentIdentity();
-            Log.Configure(MachineConfig.Load().LogLevel);
+            Log.Info(Diagnostics.Banner("Auto Exporter Agent", typeof(Program).Assembly));
             Log.Info("Service identity: " + identity);
 
             // Lifecycle loop: connect (with retry), run until the connection drops or we are told to
@@ -84,7 +84,6 @@ namespace AutoExporter.Agent
             while (!_shutdown.IsSet)
             {
                 var cfg = MachineConfig.Load();
-                Log.Configure(cfg.LogLevel);
 
                 if (string.IsNullOrWhiteSpace(cfg.ServerUrl))
                 {
@@ -204,7 +203,8 @@ namespace AutoExporter.Agent
                 return "Login refused: the configured account has no permissions on this server. " +
                        "Add the account to a Role in Management Client.";
             if (Has("ServerNotFound") || Has("No such host") || Has("could not be resolved"))
-                return "Server not found. Check the server address and that it is reachable.";
+                return $"Server not found at '{cfg?.ServerUrl}'. Check the address and port, that this machine " +
+                       "can reach the management server, and the scheme (enter http:// if the server is not on HTTPS).";
             if (Has("invalid_grant") || Has("InvalidCredentials") || Has("IDP 401") || Has("401"))
                 return "Username or password is incorrect.";
             if (Has("Timeout") || Has("timed out"))

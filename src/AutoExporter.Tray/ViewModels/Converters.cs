@@ -13,10 +13,10 @@ namespace AutoExporter.Tray.ViewModels
         private static readonly IBrush Error = new SolidColorBrush(Color.Parse("#E06363"));
         private static readonly IBrush Ok = new SolidColorBrush(Color.Parse("#7FB069"));
 
-        public object Convert(object value, Type targetType, object parameter, CultureInfo culture)
+        public object Convert(object? value, Type targetType, object? parameter, CultureInfo culture)
             => value is bool b && b ? Error : Ok;
 
-        public object ConvertBack(object value, Type targetType, object parameter, CultureInfo culture)
+        public object ConvertBack(object? value, Type targetType, object? parameter, CultureInfo culture)
             => BindingOperations.DoNothing;
     }
 
@@ -25,10 +25,10 @@ namespace AutoExporter.Tray.ViewModels
     {
         public static readonly EnumToBoolConverter Instance = new();
 
-        public object Convert(object value, Type targetType, object parameter, CultureInfo culture)
+        public object Convert(object? value, Type targetType, object? parameter, CultureInfo culture)
             => value?.ToString() == parameter?.ToString();
 
-        public object ConvertBack(object value, Type targetType, object parameter, CultureInfo culture)
+        public object ConvertBack(object? value, Type targetType, object? parameter, CultureInfo culture)
         {
             if (value is bool b && b && parameter != null)
             {
@@ -44,10 +44,10 @@ namespace AutoExporter.Tray.ViewModels
     {
         public static readonly BusyConverter Instance = new();
 
-        public object Convert(object value, Type targetType, object parameter, CultureInfo culture)
+        public object Convert(object? value, Type targetType, object? parameter, CultureInfo culture)
             => value is bool b && b ? "Connecting..." : "Connect";
 
-        public object ConvertBack(object value, Type targetType, object parameter, CultureInfo culture)
+        public object ConvertBack(object? value, Type targetType, object? parameter, CultureInfo culture)
             => BindingOperations.DoNothing;
     }
 }

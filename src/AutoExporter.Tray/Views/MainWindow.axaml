@@ -31,7 +31,7 @@
         <StackPanel Spacing="16" IsVisible="{Binding ShowGeneral}">
           <StackPanel Spacing="6">
             <TextBlock Text="General" FontSize="22" FontWeight="SemiBold" Foreground="#E6E9EF" />
-            <TextBlock Text="Where exports are written, how much history is kept, and how much the service logs."
+            <TextBlock Text="Where exports are written and how much history is kept."
                        Foreground="#8A93A6" FontSize="12" TextWrapping="Wrap" />
           </StackPanel>
 
@@ -54,11 +54,6 @@
               <NumericUpDown Value="{Binding RetentionDays}" Minimum="0" Increment="1" FormatString="0" HorizontalAlignment="Stretch" />
             </StackPanel>
           </Grid>
-
-          <StackPanel Spacing="4" Width="220" HorizontalAlignment="Left">
-            <TextBlock Text="Log level" Foreground="#8A93A6" FontSize="12" />
-            <ComboBox ItemsSource="{Binding LogLevels}" SelectedItem="{Binding LogLevel}" HorizontalAlignment="Stretch" />
-          </StackPanel>
 
           <Button Content="Save" Command="{Binding SaveCommand}" Classes="accent" Width="120" Height="34" HorizontalAlignment="Left" Margin="0,4,0,0" />
           <TextBlock Text="{Binding ErrorMessage}" Foreground="#E06363"

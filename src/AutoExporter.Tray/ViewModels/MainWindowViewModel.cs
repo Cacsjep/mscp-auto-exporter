@@ -20,9 +20,6 @@ namespace AutoExporter.Tray.ViewModels
         [ObservableProperty] private string _exportFolder = "";
         [ObservableProperty] private int _maxGB;
         [ObservableProperty] private int _retentionDays;
-        [ObservableProperty] private string _logLevel = "Info";
-
-        public string[] LogLevels { get; } = { "Error", "Info", "Debug" };
 
         // Left navigation: 0 = General, 1 = Registration, 2 = Control.
         [ObservableProperty]
@@ -144,7 +141,6 @@ namespace AutoExporter.Tray.ViewModels
             ExportFolder = cfg.ExportFolder;
             MaxGB = cfg.MaxGB;
             RetentionDays = cfg.RetentionDays;
-            LogLevel = string.IsNullOrWhiteSpace(cfg.LogLevel) ? "Info" : cfg.LogLevel;
             IsRegistered = cfg.Registered;
             IsEditingConnection = false;
             // Land on Registration until a server is registered, then on General.
@@ -160,7 +156,6 @@ namespace AutoExporter.Tray.ViewModels
             ExportFolder = ExportFolder,
             MaxGB = MaxGB,
             RetentionDays = RetentionDays,
-            LogLevel = LogLevel,
             Registered = IsRegistered,
         };
 
@@ -249,6 +244,7 @@ namespace AutoExporter.Tray.ViewModels
             ErrorMessage = null;
             StatusMessage = "";
             IsBusy = true;
+            Log.Info($"Connect requested: server='{ServerUrl}', auth={AuthMode}, user='{Username}'.");
             try
             {
                 // Persist the credentials the service will use, clear the previous result, then

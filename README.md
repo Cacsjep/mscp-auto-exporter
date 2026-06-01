@@ -21,7 +21,10 @@ Style: no em dashes or semicolons in prose, docs or comments.
   the service, then shows the service's own result from `agent.state`. One login path.
 - Jobs and agents are stored as MIP config items, the UI is our own (Configuration API). A rule or
   Run now sends a `RunJob` message to the owning agent.
-- Config and state live under `%ProgramData%\MSCPlugins\AutoExporter\`.
+- Config, state and logs live under `%ProgramData%\MSCPlugins\AutoExporter\` (`agent.log`,
+  `tray.log`, `plugin.log`). Logging is always verbose (no level setting) and size-rotated to about
+  50 MB per log, so issue reports have full detail without filling the disk. Each component logs an
+  environment banner (version, OS, machine) at startup.
 
 ## Gotchas (read before changing)
 
