@@ -36,6 +36,10 @@
                   Schedule="afterInstallInitialize" />
     <MediaTemplate EmbedCab="yes" CompressionLevel="high" />
 
+    <!-- Managed custom actions (Event Server stop/start with timeout). build.ps1 builds the
+         AutoExporter.Installer.CustomActions project and passes the packed .CA.dll path here. -->
+    <Binary Id="CustomActionsBin" SourceFile="$(var.CustomActionsDll)" />
+
     <Launch Condition="VersionNT64" Message="Auto Exporter requires a 64 bit version of Windows." />
 
     <!-- Feature-tree UI. -->
@@ -99,21 +103,24 @@
                   DllEntry="WixQuietExec64" BinaryRef="Wix4UtilCA_X86"
                   Execute="deferred" Impersonate="no" Return="ignore" />
 
-    <!-- Stop the Event Server (net stop waits for it to actually stop). -->
+    <!-- Stop the Event Server before the plugin file copy. Uses the managed EnsureServiceState
+         action (AutoExporter.Installer.CustomActions) so it waits up to the timeout for the service
+         to actually reach Stopped and FAILS the install (Return=check) if it does not, rather than
+         a best-effort net stop. The SetProperty value is the deferred action's CustomActionData. -->
     <SetProperty Id="CA_StopEventServer"
                  Before="CA_StopEventServer" Sequence="execute"
-                 Value="&quot;[System64Folder]cmd.exe&quot; /c net stop MilestoneEventServerService /y 2&gt;nul &amp; exit /b 0" />
+                 Value="ServiceName=MilestoneEventServerService;DisplayName=Milestone Event Server;Operation=Stop;TimeoutSeconds=180" />
     <CustomAction Id="CA_StopEventServer"
-                  DllEntry="WixQuietExec64" BinaryRef="Wix4UtilCA_X86"
-                  Execute="deferred" Impersonate="no" Return="ignore" />
+                  DllEntry="EnsureServiceState" BinaryRef="CustomActionsBin"
+                  Execute="deferred" Impersonate="no" Return="check" />
 
     <!-- Start the Event Server again after the copy so it loads the (new) plugin. -->
     <SetProperty Id="CA_StartEventServer"
                  Before="CA_StartEventServer" Sequence="execute"
-                 Value="&quot;[System64Folder]cmd.exe&quot; /c net start MilestoneEventServerService 2&gt;nul &amp; exit /b 0" />
+                 Value="ServiceName=MilestoneEventServerService;DisplayName=Milestone Event Server;Operation=Start;TimeoutSeconds=180" />
     <CustomAction Id="CA_StartEventServer"
-                  DllEntry="WixQuietExec64" BinaryRef="Wix4UtilCA_X86"
-                  Execute="deferred" Impersonate="no" Return="ignore" />
+                  DllEntry="EnsureServiceState" BinaryRef="CustomActionsBin"
+                  Execute="deferred" Impersonate="no" Return="check" />
 
     <!-- Kill any running tray before files change, so an upgrade can replace it and an uninstall
          can remove it (a running tray locks AutoExporter.Tray.exe). Runs as SYSTEM, which can end a

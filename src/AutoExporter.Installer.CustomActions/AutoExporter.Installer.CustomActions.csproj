@@ -1,0 +1,37 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    Managed MSI custom actions for the Auto Exporter installer. Built by build.ps1 before the WiX
+    package. The WixToolset.Dtf.CustomAction build target packs the managed assembly into a
+    self-extracting AutoExporterCustomActions.CA.dll, which Package.wxs embeds as a <Binary>.
+
+    Used for stopping/starting the Milestone Event Server with a real timeout and a checked return,
+    so a service that will not cycle fails the install loudly instead of silently proceeding (the
+    same EnsureServiceState pattern the MS Community Plugins installer uses).
+  -->
+  <PropertyGroup>
+    <TargetFramework>net48</TargetFramework>
+    <AssemblyName>AutoExporterCustomActions</AssemblyName>
+    <RootNamespace>AutoExporter.Installer.CustomActions</RootNamespace>
+    <GenerateAssemblyInfo>false</GenerateAssemblyInfo>
+    <LangVersion>latest</LangVersion>
+    <!-- This is an installer payload, not a deployed component, so keep it out of the dev-deploy. -->
+    <CIBuild>true</CIBuild>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="WixToolset.Dtf.CustomAction" Version="6.0.2" />
+    <PackageReference Include="WixToolset.Dtf.WindowsInstaller" Version="6.0.2" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Reference Include="System.ServiceProcess" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Content Include="CustomAction.config">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
+  </ItemGroup>
+
+</Project>

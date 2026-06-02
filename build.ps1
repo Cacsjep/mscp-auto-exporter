@@ -141,20 +141,24 @@ function Build-Installer {
     & wix extension add -g WixToolset.Util.wixext/5
     if ($LASTEXITCODE -ne 0) { throw "wix extension add WixToolset.Util.wixext/5 failed" }
 
-    # Build all three payloads (no service install / restart needed just to package).
+    # Build all payloads (no service install / restart needed just to package). The custom-actions
+    # project packs itself into AutoExporterCustomActions.CA.dll via the WixToolset.Dtf build target.
     Invoke-Build 'src\AutoExporter.Agent\AutoExporter.Agent.csproj'
     Invoke-Build 'src\AutoExporter.AdminPlugin\AutoExporter.AdminPlugin.csproj'
+    Invoke-Build 'src\AutoExporter.Installer.CustomActions\AutoExporter.Installer.CustomActions.csproj'
     Build-Tray
 
     $agentDir  = Join-Path $root "src\AutoExporter.Agent\bin\$Configuration\net48"
     $pluginDir = Join-Path $root "src\AutoExporter.AdminPlugin\bin\$Configuration\net48"
     $trayExe   = Join-Path $root "src\AutoExporter.Tray\bin\$Configuration\net9.0-windows\win-x64\publish\AutoExporter.Tray.exe"
+    $caDll     = Join-Path $root "src\AutoExporter.Installer.CustomActions\bin\$Configuration\net48\AutoExporterCustomActions.CA.dll"
     $installerDir = Join-Path $root 'src\AutoExporter.Installer'
     $wxs       = Join-Path $installerDir 'Package.wxs'
     $outDir    = Join-Path $installerDir 'bin'
     $msi       = Join-Path $outDir 'AutoExporter.msi'
 
     if (-not (Test-Path $trayExe)) { throw "tray publish not found: $trayExe" }
+    if (-not (Test-Path $caDll)) { throw "custom actions not packed (expected $caDll). The WixToolset.Dtf.CustomAction MakeSfxCA target did not run." }
     New-Item -ItemType Directory -Force -Path $outDir | Out-Null
 
     Write-Step "package installer -> $msi"
@@ -162,7 +166,8 @@ function Build-Installer {
     & wix build $wxs -arch x64 -bindpath $installerDir `
         -ext WixToolset.UI.wixext -ext WixToolset.Util.wixext `
         -d "Version=$Version" `
-        -d "AgentDir=$agentDir" -d "TrayExe=$trayExe" -d "PluginDir=$pluginDir" -o $msi
+        -d "AgentDir=$agentDir" -d "TrayExe=$trayExe" -d "PluginDir=$pluginDir" `
+        -d "CustomActionsDll=$caDll" -o $msi
     if ($LASTEXITCODE -ne 0) { throw 'wix build failed' }
     Write-Step "installer built: $msi"
 }
