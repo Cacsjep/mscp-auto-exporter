@@ -42,6 +42,7 @@ namespace AutoExporter.Contracts
             F(sb, r.OutputFolder);
             F(sb, JoinList(r.CameraNames));
             F(sb, JoinList(r.SkippedCameras));
+            F(sb, r.Progress.ToString(CultureInfo.InvariantCulture));
             return sb.ToString();
         }
 
@@ -49,7 +50,8 @@ namespace AutoExporter.Contracts
         {
             if (string.IsNullOrEmpty(line)) return null;
             var p = line.Split(Fs);
-            // version + 18 payload fields = 19 segments.
+            // version + 18 payload fields = 19 segments (Progress is an optional 20th, appended later
+            // so records written before it still decode with Progress = 0).
             if (p.Length < 19 || p[0] != Version) return null;
             try
             {
@@ -73,6 +75,7 @@ namespace AutoExporter.Contracts
                     OutputFolder = Un(p[16]),
                     CameraNames = SplitList(p[17]),
                     SkippedCameras = SplitList(p[18]),
+                    Progress = p.Length > 19 ? ParseInt(Un(p[19])) : 0,
                 };
             }
             catch { return null; }

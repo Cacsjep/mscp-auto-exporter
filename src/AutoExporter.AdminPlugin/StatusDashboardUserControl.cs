@@ -260,7 +260,7 @@ namespace AutoExporter.AdminPlugin
                 var item = new ListViewItem(ToLocal(r.StartedUtc)) { Tag = r };
                 item.SubItems.Add(r.JobName ?? "");
                 item.SubItems.Add(AgentsUserControl.FriendlyName(r.AgentHostname, friendly));
-                item.SubItems.Add(r.Outcome ?? (r.Success ? "Success" : "Failed"));
+                item.SubItems.Add(OutcomeText(r));
                 item.SubItems.Add(r.CameraCount.ToString(CultureInfo.InvariantCulture));
                 item.SubItems.Add(HumanSize(r.BytesWritten));
                 item.SubItems.Add(r.Trigger ?? "");
@@ -272,6 +272,15 @@ namespace AutoExporter.AdminPlugin
 
             SetStatus($"{snapshot.Count} run(s) from {agentCount} agent(s). Last refreshed {NowLocal()}.");
             try { ExecutionsUpdated?.Invoke(snapshot); } catch { }
+        }
+
+        // "Running 45%" while a run is in progress (the agent reports overall percent), else the outcome.
+        internal static string OutcomeText(ExecutionRecord r)
+        {
+            var o = r.Outcome ?? (r.Success ? "Success" : "Failed");
+            return string.Equals(o, "Running", StringComparison.OrdinalIgnoreCase) && r.Progress > 0
+                ? $"Running {r.Progress}%"
+                : o;
         }
 
         private static string DetailText(ExecutionRecord r)

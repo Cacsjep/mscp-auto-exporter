@@ -92,7 +92,7 @@ namespace AutoExporter.AdminPlugin
                 if (_latestByJob.TryGetValue(it.FQID.ObjectId, out var rec))
                 {
                     row.SubItems[6].Text = rec.StartedUtc.ToLocalTime().ToString("yyyy-MM-dd HH:mm");
-                    row.SubItems[7].Text = rec.Outcome ?? (rec.Success ? "Success" : "Failed");
+                    row.SubItems[7].Text = StatusDashboardUserControl.OutcomeText(rec);
                 }
             }
         }
@@ -124,7 +124,7 @@ namespace AutoExporter.AdminPlugin
                     if (_latestByJob.TryGetValue(it.FQID.ObjectId, out var rec))
                     {
                         lastRun = rec.StartedUtc.ToLocalTime().ToString("yyyy-MM-dd HH:mm");
-                        lastStatus = rec.Outcome ?? (rec.Success ? "Success" : "Failed");
+                        lastStatus = StatusDashboardUserControl.OutcomeText(rec);
                     }
                     row.SubItems.Add(lastRun);
                     row.SubItems.Add(lastStatus);

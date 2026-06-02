@@ -113,6 +113,10 @@ namespace AutoExporter.Agent
             };
             PublishRecord(rec);
 
+            // Let OnProgress publish live progress against this record while the export runs.
+            _runningRec = rec;
+            _isAviFormat = string.Equals(job.Format, "AVI", StringComparison.OrdinalIgnoreCase);
+
             // 4. Pre-run ring cleanup using the agent-wide limits from the tray config.
             var ring = RingStorage.FromGigabytes(outputBase, cfg.MaxGB, cfg.RetentionDays);
             if (ring.IsConfigured)
@@ -168,6 +172,13 @@ namespace AutoExporter.Agent
         private void PublishRecord(ExecutionRecord rec)
         {
             ExecutionStore.Append(rec);
+            PublishLive(rec);
+        }
+
+        // Push a record to the admin Executions view without persisting it (used for the high-frequency
+        // progress updates, so the JSONL store is not flooded with one row per progress tick).
+        private void PublishLive(ExecutionRecord rec)
+        {
             try { _session.SendNotice(Messages.ExecutionsReply, ExecutionCodec.EncodeList(new List<ExecutionRecord> { rec })); }
             catch (Exception ex) { Log.Error("Publish execution record failed: " + ex.Message); }
         }
@@ -198,6 +209,12 @@ namespace AutoExporter.Agent
         }
 
         private int _lastCam = -1;
+        private ExecutionRecord _runningRec;     // the live "Running" record progress is published against
+        private bool _isAviFormat;               // AVI exports per camera; DB reports one overall percent
+        private int _lastPublishedPct = -1;
+        private int _lastPublishTick;
+
+        // Called by the exporter on every poll: (cameraIndex, total, percent-of-current, cameraName).
         private void OnProgress(int cameraIndex, int total, int pct, string cameraName)
         {
             // Log only on camera transitions to avoid flooding the log.
@@ -205,6 +222,26 @@ namespace AutoExporter.Agent
             {
                 _lastCam = cameraIndex;
                 Log.Info($"Progress: camera {cameraIndex + 1}/{total} '{cameraName}'");
+            }
+
+            if (_runningRec == null) return;
+
+            // DB export reports one overall percent for the whole run; AVI reports a per-camera percent,
+            // so fold the camera index into an overall figure.
+            int clamped = pct < 0 ? 0 : (pct > 100 ? 100 : pct);
+            int overall = _isAviFormat && total > 0
+                ? (int)((cameraIndex * 100L + clamped) / total)
+                : clamped;
+
+            // Publish live (not to the persistent store) at most every ~1.5s, plus the final 100, so
+            // the Executions row shows "Running NN%" without flooding the message channel.
+            int now = System.Environment.TickCount;
+            if (overall != _lastPublishedPct && (overall >= 100 || unchecked(now - _lastPublishTick) >= 1500))
+            {
+                _lastPublishedPct = overall;
+                _lastPublishTick = now;
+                _runningRec.Progress = overall;
+                PublishLive(_runningRec);
             }
         }
     }

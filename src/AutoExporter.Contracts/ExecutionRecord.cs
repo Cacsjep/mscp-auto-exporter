@@ -20,7 +20,8 @@ namespace AutoExporter.Contracts
         public string Format;            // "XProtect" | "AVI"
         public string Trigger;           // "Rule" | "Manual"
         public bool Success;
-        public string Outcome;           // "Success" | "Partial" | "Skipped" | "Failed"
+        public string Outcome;           // "Running" | "Success" | "Partial" | "Skipped" | "Stopped" | "Failed"
+        public int Progress;             // 0-100 while Outcome is "Running" (overall across cameras)
         public string Error;
         public int CameraCount;
         public long BytesWritten;

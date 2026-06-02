@@ -101,6 +101,13 @@ function Build-Agent {
         Write-Step "install service $AgentSvc"
         & sc.exe create $AgentSvc binPath= "`"$exe`"" start= auto DisplayName= "Auto Exporter Agent" | Out-Null
     }
+    else {
+        # Always repoint the existing service at the current exe. Without this, an install-dir change
+        # (the AutoExporterAgent -> AutoExporter rename) leaves the service launching the OLD exe, so a
+        # redeploy looks like it did nothing (stale version, missing features).
+        Write-Step "ensure service $AgentSvc runs $exe"
+        & sc.exe config $AgentSvc binPath= "`"$exe`"" | Out-Null
+    }
     if (-not $NoRestart) {
         Write-Step "start $AgentSvc"
         Start-Service -Name $AgentSvc -ErrorAction SilentlyContinue

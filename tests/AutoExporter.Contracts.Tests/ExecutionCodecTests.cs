@@ -27,6 +27,7 @@ namespace AutoExporter.Contracts.Tests
             OutputFolder = @"C:\Exports\Nightly\01.06.2026_0300",
             CameraNames = new List<string> { "Front", "Back" },
             SkippedCameras = new List<string> { "Disabled cam" },
+            Progress = 73,
         };
 
         [Fact]
@@ -51,6 +52,19 @@ namespace AutoExporter.Contracts.Tests
             Assert.Equal(r.OutputFolder, decoded.OutputFolder);
             Assert.Equal(new[] { "Front", "Back" }, decoded.CameraNames);
             Assert.Equal(new[] { "Disabled cam" }, decoded.SkippedCameras);
+            Assert.Equal(73, decoded.Progress);
+        }
+
+        [Fact]
+        public void Decode_DefaultsProgressToZero_ForOlderRecordsWithoutIt()
+        {
+            // A record written before Progress existed has no trailing Progress field. Simulate it by
+            // dropping the last separator-delimited segment, and confirm it still decodes (Progress 0).
+            var full = ExecutionCodec.Encode(Sample());
+            var withoutProgress = full.Substring(0, full.LastIndexOf('\u001F'));
+            var decoded = ExecutionCodec.Decode(withoutProgress);
+            Assert.NotNull(decoded);
+            Assert.Equal(0, decoded.Progress);
         }
 
         [Fact]

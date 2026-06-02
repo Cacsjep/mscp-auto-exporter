@@ -106,7 +106,7 @@ namespace AutoExporter.AdminPlugin
             AddRow(root, "Format", Flow(_radXProtect, _radAvi));
             AddRow(root, "", _lblFormatHint);
             AddRow(root, "Encryption", Flow(_chkEncrypt, _txtPassword));
-            AddRow(root, "AVI options", _chkTimestamp);
+            AddRow(root, "AVI options", Flow(_chkTimestamp));
             AddRow(root, "Time range", Flow(new Label { Text = "Last", AutoSize = true, Anchor = AnchorStyles.Left, Padding = new Padding(0, 6, 0, 0) }, _numRangeValue, _cboRangeUnit));
 
             var targetButtons = new FlowLayoutPanel { FlowDirection = FlowDirection.LeftToRight, AutoSize = true };
