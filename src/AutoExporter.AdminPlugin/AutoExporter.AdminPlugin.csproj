@@ -7,8 +7,8 @@
     <RootNamespace>AutoExporter.AdminPlugin</RootNamespace>
     <AssemblyName>AutoExporter.AdminPlugin</AssemblyName>
 
-    <!-- Dev deploy: MIPPlugins\AutoExporterV2 + restart Event Server (skipped when CIBuild=true) -->
-    <PluginName>AutoExporterV2</PluginName>
+    <!-- Dev deploy: MIPPlugins\AutoExporter + restart Event Server (skipped when CIBuild=true) -->
+    <PluginName>AutoExporter</PluginName>
     <StopEventServer>true</StopEventServer>
     <StartEventServer>true</StartEventServer>
     <StopAdminClient>true</StopAdminClient>

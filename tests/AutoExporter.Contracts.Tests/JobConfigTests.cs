@@ -17,7 +17,6 @@ namespace AutoExporter.Contracts.Tests
                 Format = "AVI",
                 Encrypt = true,
                 Password = "pw",
-                IncludePlayer = false,
                 IncludeAudio = false,
                 RangeValue = 12,
                 RangeUnit = "Hours",
@@ -33,7 +32,6 @@ namespace AutoExporter.Contracts.Tests
             Assert.Equal("AVI", loaded.Format);
             Assert.True(loaded.Encrypt);
             Assert.Equal("pw", loaded.Password);
-            Assert.False(loaded.IncludePlayer);
             Assert.False(loaded.IncludeAudio);
             Assert.Equal(12, loaded.RangeValue);
             Assert.Equal("Hours", loaded.RangeUnit);

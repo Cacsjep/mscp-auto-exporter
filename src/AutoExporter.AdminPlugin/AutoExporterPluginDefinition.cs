@@ -34,7 +34,7 @@ namespace AutoExporter.AdminPlugin
         private Image _pluginIcon = PluginIcon.Fallback;
 
         public override Guid Id => Ids.PluginId;
-        public override string Name => "Exporter";
+        public override string Name => "Auto Exporter";
         public override string Manufacturer => Ids.IntegrationManufacturer;
         public override Image Icon => _pluginIcon;
 
@@ -98,7 +98,7 @@ namespace AutoExporter.AdminPlugin
         public override List<BackgroundPlugin> BackgroundPlugins => _backgroundPlugins;
         public override ActionManager ActionManager => _actionManager;
 
-        // Help page shown when the plugin root node ("Exporter") is selected in the tree, matching
+        // Help page shown when the plugin root node ("Auto Exporter") is selected in the tree, matching
         // the help style of the other admin plugins. The operational UI lives under the Overview node.
         public override UserControl GenerateUserControl() => new HtmlHelpUserControl();
     }

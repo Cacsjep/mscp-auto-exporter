@@ -22,6 +22,12 @@ namespace AutoExporter.Contracts
         public string Password = "";        // plaintext in-memory; encrypted at rest
         public string ExportFolder = "";
 
+        // Friendly name shown for this agent in the Management Client (Exporter -> Agents). The
+        // admin cannot write the agent node (it is not a registered tree node, so the config REST
+        // layer rejects the PUT), so the agent owns its own name: it is set here in the tray and the
+        // service writes it into its self-registered node. Blank falls back to the hostname.
+        public string DisplayName = "";
+
         // Retained for config-file compatibility only. Logging is always verbose now (size-rotated),
         // so the agent does not read this and the tray no longer exposes it.
         public string LogLevel = "Info";
@@ -49,6 +55,7 @@ namespace AutoExporter.Contracts
             sb.AppendLine("Username=" + Escape(Username));
             sb.AppendLine("Password=" + Protect(Password));
             sb.AppendLine("ExportFolder=" + Escape(ExportFolder));
+            sb.AppendLine("DisplayName=" + Escape(DisplayName));
             sb.AppendLine("LogLevel=" + Escape(LogLevel));
             sb.AppendLine("MaxGB=" + MaxGB.ToString(CultureInfo.InvariantCulture));
             sb.AppendLine("RetentionDays=" + RetentionDays.ToString(CultureInfo.InvariantCulture));
@@ -79,6 +86,7 @@ namespace AutoExporter.Contracts
                         case "Username": cfg.Username = Unescape(val); break;
                         case "Password": cfg.Password = Unprotect(val); break;
                         case "ExportFolder": cfg.ExportFolder = Unescape(val); break;
+                        case "DisplayName": cfg.DisplayName = Unescape(val); break;
                         case "LogLevel": cfg.LogLevel = string.IsNullOrWhiteSpace(val) ? "Info" : Unescape(val); break;
                         case "MaxGB": cfg.MaxGB = ParseInt(val); break;
                         case "RetentionDays": cfg.RetentionDays = ParseInt(val); break;

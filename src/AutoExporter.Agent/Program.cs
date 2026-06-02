@@ -39,7 +39,7 @@ namespace AutoExporter.Agent
         /// already configured on its first start. Invoked by the MSI as a deferred action running
         /// as LocalSystem. Arguments are --key=value pairs:
         ///   --server= --auth=(Basic|WindowsOtherUser) --user= --password=
-        ///   --folder= --maxgb= --retention= --loglevel=
+        ///   --name= --folder= --maxgb= --retention= --loglevel=
         /// This reuses MachineConfig.Save so the format and DPAPI (LocalMachine) match exactly what
         /// the service reads. It never overwrites an existing config with a blank server.
         /// </summary>
@@ -67,6 +67,7 @@ namespace AutoExporter.Agent
                         ? AuthMode.WindowsOtherUser : AuthMode.Basic,
                     Username = Get("user"),
                     Password = Get("password"),
+                    DisplayName = Get("name"),
                     ExportFolder = Get("folder"),
                     LogLevel = string.IsNullOrWhiteSpace(Get("loglevel")) ? "Info" : Get("loglevel"),
                     MaxGB = GetInt("maxgb"),

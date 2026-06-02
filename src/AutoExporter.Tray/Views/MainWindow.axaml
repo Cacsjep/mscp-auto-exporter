@@ -37,6 +37,11 @@
           </StackPanel>
 
           <StackPanel Spacing="4">
+            <TextBlock Text="Display name (optional)" Foreground="#8A93A6" FontSize="12" />
+            <TextBox Text="{Binding DisplayName}" Watermark="Friendly name shown in the Management Client" />
+          </StackPanel>
+
+          <StackPanel Spacing="4">
             <TextBlock Text="Export folder" Foreground="#8A93A6" FontSize="12" />
             <Grid ColumnDefinitions="*,8,Auto,8,Auto">
               <TextBox Grid.Column="0" Text="{Binding ExportFolder}" Watermark="C:\Exports or \\server\share\Exports" />
@@ -67,7 +72,7 @@
         <StackPanel Spacing="16" IsVisible="{Binding ShowRegistration}">
           <StackPanel Spacing="6">
             <TextBlock Text="Server Registration" FontSize="22" FontWeight="SemiBold" Foreground="#E6E9EF" />
-            <TextBlock Text="Register this agent with the Management Server. The service signs in to Milestone with the credentials below and then appears under Exporter, Agents in the Management Client."
+            <TextBlock Text="Register this agent with the Management Server. The service signs in to Milestone with the credentials below and then appears under Auto Exporter, Agents in the Management Client."
                        Foreground="#8A93A6" FontSize="12" TextWrapping="Wrap" />
           </StackPanel>
 

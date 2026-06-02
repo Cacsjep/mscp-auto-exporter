@@ -30,16 +30,27 @@ jobs:
           dotnet tool install --global wix
           echo "$env:USERPROFILE\.dotnet\tools" >> $env:GITHUB_PATH
 
+      - name: Resolve version from tag
+        id: ver
+        shell: pwsh
+        run: |
+          # Release tags look like v3.4.0; strip the leading v. A manual run off a branch has no
+          # version tag, so fall back to 0.0.0 (a never-shipped placeholder).
+          $ref = $env:GITHUB_REF_NAME
+          $version = if ($ref -match '^v\d') { $ref -replace '^v', '' } else { '0.0.0' }
+          "version=$version" >> $env:GITHUB_OUTPUT
+          Write-Host "Building version $version"
+
       - name: Build installer (Release)
         shell: pwsh
-        run: .\build.ps1 -Component installer -Configuration Release
+        run: .\build.ps1 -Component installer -Configuration Release -Version ${{ steps.ver.outputs.version }}
 
       - name: Stage MSI with version in the name
         shell: pwsh
         run: |
-          $tag = if ($env:GITHUB_REF_NAME) { $env:GITHUB_REF_NAME } else { "dev" }
           New-Item -ItemType Directory -Force dist | Out-Null
-          Copy-Item "src/AutoExporter.Installer/bin/AutoExporter.msi" "dist/AutoExporter-$tag.msi" -Force
+          Copy-Item "src/AutoExporter.Installer/bin/AutoExporter.msi" `
+            "dist/MSCPAutoExport-${{ steps.ver.outputs.version }}-Setup.msi" -Force
 
       - name: Upload MSI as a build artifact
         uses: actions/upload-artifact@v4

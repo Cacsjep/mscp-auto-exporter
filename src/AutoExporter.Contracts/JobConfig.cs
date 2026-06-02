@@ -25,7 +25,9 @@ namespace AutoExporter.Contracts
         public string Format = "XProtect";   // "XProtect" | "AVI"
         public bool Encrypt;
         public string Password = "";
-        public bool IncludePlayer = true;
+        // Audio is always exported. The Smart Client (TM) Player ("include player") is intentionally
+        // not offered: the SDK can only bundle the player when the export runs inside the Smart
+        // Client itself, so a standalone agent can never produce it. See the plugin help page.
         public bool IncludeAudio = true;
         public int RangeValue = 1;
         public string RangeUnit = "Days";     // Minutes | Hours | Days | Months
@@ -39,7 +41,6 @@ namespace AutoExporter.Contracts
             public const string Format = "Format";
             public const string Encrypt = "Encrypt";
             public const string Password = "Password";
-            public const string IncludePlayer = "IncludePlayer";
             public const string IncludeAudio = "IncludeAudio";
             public const string RangeValue = "RangeValue";
             public const string RangeUnit = "RangeUnit";
@@ -57,7 +58,6 @@ namespace AutoExporter.Contracts
                 [Keys.Format] = Format ?? "XProtect",
                 [Keys.Encrypt] = Encrypt ? "Yes" : "No",
                 [Keys.Password] = Password ?? "",
-                [Keys.IncludePlayer] = IncludePlayer ? "Yes" : "No",
                 [Keys.IncludeAudio] = IncludeAudio ? "Yes" : "No",
                 [Keys.RangeValue] = RangeValue.ToString(CultureInfo.InvariantCulture),
                 [Keys.RangeUnit] = RangeUnit ?? "Days",
@@ -82,7 +82,6 @@ namespace AutoExporter.Contracts
                 Format = Get(p, Keys.Format, "XProtect"),
                 Encrypt = IsYes(Get(p, Keys.Encrypt, "No")),
                 Password = Get(p, Keys.Password, ""),
-                IncludePlayer = IsYes(Get(p, Keys.IncludePlayer, "Yes")),
                 IncludeAudio = IsYes(Get(p, Keys.IncludeAudio, "Yes")),
                 RangeValue = GetInt(p, Keys.RangeValue, 1),
                 RangeUnit = Get(p, Keys.RangeUnit, "Days"),

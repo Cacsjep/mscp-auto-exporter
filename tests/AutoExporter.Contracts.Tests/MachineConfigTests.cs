@@ -20,6 +20,7 @@ namespace AutoExporter.Contracts.Tests
                 AuthMode = AuthMode.WindowsOtherUser,
                 Username = "DOMAIN\\svc",
                 Password = "p@ss w0rd!",
+                DisplayName = "Lobby exporter",
                 ExportFolder = @"C:\Exports\Auto",
                 LogLevel = "Debug",
                 MaxGB = 42,
@@ -33,6 +34,7 @@ namespace AutoExporter.Contracts.Tests
             Assert.Equal(cfg.AuthMode, loaded.AuthMode);
             Assert.Equal(cfg.Username, loaded.Username);
             Assert.Equal(cfg.Password, loaded.Password);
+            Assert.Equal(cfg.DisplayName, loaded.DisplayName);
             Assert.Equal(cfg.ExportFolder, loaded.ExportFolder);
             Assert.Equal(cfg.LogLevel, loaded.LogLevel);
             Assert.Equal(cfg.MaxGB, loaded.MaxGB);

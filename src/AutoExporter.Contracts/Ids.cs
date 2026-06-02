@@ -38,8 +38,13 @@ namespace AutoExporter.Contracts
         // ── SDK login integration identity (used by the agent) ──────────
         public static readonly Guid IntegrationId      = PluginId;
         public const string IntegrationName            = "Auto Exporter Agent";
-        public const string IntegrationVersion         = "1.0";
-        public const string IntegrationManufacturer    = "https://github.com/Cacsjep";
+        public const string IntegrationManufacturer    = "MSC Community Plugins";
+
+        // The single product version, read from this (Contracts) assembly so it tracks the build
+        // version stamped by CI (-p:Version=<tag>). Reported to Milestone at login and shown in the
+        // Agents Version column.
+        public static readonly string IntegrationVersion =
+            typeof(Ids).Assembly.GetName().Version?.ToString(3) ?? "1.0.0";
     }
 
     /// <summary>

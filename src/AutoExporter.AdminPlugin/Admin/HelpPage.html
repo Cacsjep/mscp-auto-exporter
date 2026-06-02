@@ -40,7 +40,7 @@
 </ul>
 
 <h2>Agents</h2>
-<p>An agent appears here automatically once its service signs in (it registers itself by hostname). You do not add agents by hand. The Agents section shows each agent's status, version, export folder, and its size and age limits (set in that machine's tray app).</p>
+<p>An agent appears here automatically once its service signs in (it registers itself by hostname). You do not add agents by hand. The Agents section shows each agent's status, version, export folder, its size and age limits (set in that machine's tray app), and how much disk the export folder currently uses (the Used GB column, refreshed every couple of minutes).</p>
 <ul>
   <li>An agent shows <strong>Offline</strong> once it has missed several heartbeats or its service was stopped or uninstalled.</li>
   <li>An offline agent can be removed with <strong>Remove agent</strong>. This also deletes every job assigned to that agent, so no job is left pointing at a missing agent. A live agent cannot be removed because it would just register itself again.</li>
@@ -49,10 +49,20 @@
 <h2>Set up a job</h2>
 <ol>
   <li>Open <strong>Jobs</strong> (or the Overview Jobs section) and add a job.</li>
-  <li>Give it a name, pick the <strong>agent</strong> that runs it, choose the format (XProtect or AVI), set the time range, and add the <strong>cameras or camera groups</strong>.</li>
+  <li>Give it a name, pick the <strong>agent</strong> that runs it, choose the format (AVI or XProtect (TM)), set the time range, and add the <strong>cameras or camera groups</strong>.</li>
   <li>Save. A job cannot be saved without a name, an agent, and at least one camera or group.</li>
-  <li>Use <strong>Run now</strong> in the Jobs section to test it, or build an XProtect Rule with the <strong>Run Auto Export Job</strong> action. Watch the <strong>Executions</strong> section for the result.</li>
+  <li>Use <strong>Run now</strong> in the Jobs section to test it, or build an XProtect (TM) Rule with the <strong>Run Auto Export Job</strong> action. Watch the <strong>Executions</strong> section for the result.</li>
 </ol>
+<p>Audio is always included in an export. Microphones and speakers related to the selected cameras are exported alongside the video.</p>
+
+<div class="tip">
+  <strong>Export formats and the Smart Client (TM) Player.</strong>
+  <ul>
+    <li><strong>AVI</strong> produces a standard video file per camera that plays in any media player. It is the default and needs no Milestone software to view. It does not support encryption.</li>
+    <li><strong>XProtect (TM)</strong> produces the Milestone database export (a Data folder plus a project file) and supports encryption. You open it in a Smart Client (TM) to review it.</li>
+    <li>The bundled <strong>Smart Client (TM) Player</strong> (the standalone <code>SmartClient-Player.exe</code> you get from an export made inside the Smart Client) is <strong>not</strong> included. Milestone only adds the player when the export runs from within the Smart Client itself, so a standalone service such as this agent cannot produce it. Use AVI if the recipient has no Milestone software, or open the XProtect (TM) export in a Smart Client (TM).</li>
+  </ul>
+</div>
 
 <h2>Where exports go and how long they stay</h2>
 <p>The export folder, the maximum size, and the retention in days are <strong>per agent</strong>, not per job. They are set in the agent's tray app, not here. Each job writes into its own subfolder under that export folder, and each run gets its own timestamped folder.</p>

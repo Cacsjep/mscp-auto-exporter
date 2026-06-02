@@ -8,7 +8,7 @@ using VideoOS.Platform.RuleAction;
 namespace AutoExporter.AdminPlugin
 {
     /// <summary>
-    /// Registers the "Execute Auto Export Job" rule action. When a rule fires it, the action
+    /// Registers the "Run Auto Export Job" rule action. When a rule fires it, the action
     /// runs in the Event Server and hands off to the bridge, which sends a MIP RunJob message
     /// to the agent that owns the job (resolved from the job item's parent agent node).
     /// </summary>
@@ -21,9 +21,9 @@ namespace AutoExporter.AdminPlugin
                 new ActionDefinition
                 {
                     Id = Ids.RunExportActionId,
-                    Name = "Execute Auto Export Job",
-                    SelectionText = "Execute <Auto Export Job>",
-                    DescriptionText = "Execute {0}",
+                    Name = "Run Auto Export Job",
+                    SelectionText = "Run <Auto Export Job>",
+                    DescriptionText = "Run {0}",
                     ActionItemKind = new ActionElement
                     {
                         DefaultText = "Auto Export Job",

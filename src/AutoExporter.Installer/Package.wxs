@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!--
-  Auto Exporter (V2) installer. One MSI with two selectable features:
+  Auto Exporter installer. One MSI with two selectable features:
 
     Agent   - the agent Windows service plus the tray app (install on each export machine).
     Plugin  - the Management Client admin plugin (install on the management machine).
@@ -25,8 +25,8 @@
      xmlns:util="http://wixtoolset.org/schemas/v4/wxs/util">
 
   <Package Name="Auto Exporter"
-           Manufacturer="https://github.com/Cacsjep"
-           Version="1.0.0.0"
+           Manufacturer="MSC Community Plugins"
+           Version="$(var.Version)"
            UpgradeCode="8F2C6D14-7A3B-4E59-9C20-1D4E6F8A2B70"
            Scope="perMachine"
            InstallerVersion="500"
@@ -56,14 +56,14 @@
     <StandardDirectory Id="ProgramFiles64Folder">
       <!-- Agent + tray -->
       <Directory Id="MSCPLUGINS" Name="MSCPlugins">
-        <Directory Id="INSTALLFOLDER" Name="AutoExporterAgent">
+        <Directory Id="INSTALLFOLDER" Name="AutoExporter">
           <Directory Id="TRAYFOLDER" Name="Tray" />
         </Directory>
       </Directory>
       <!-- Admin plugin (Milestone MIP plugin host scans here) -->
       <Directory Id="MILESTONEDIR" Name="Milestone">
         <Directory Id="MIPPLUGINS" Name="MIPPlugins">
-          <Directory Id="PLUGINFOLDER" Name="AutoExporterV2" />
+          <Directory Id="PLUGINFOLDER" Name="AutoExporter" />
         </Directory>
       </Directory>
     </StandardDirectory>

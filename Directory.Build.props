@@ -16,6 +16,17 @@
     <Nullable>disable</Nullable>
   </PropertyGroup>
 
+  <!--
+    Single product version. The default is for local/dev builds. CI passes the release tag
+    (without the leading v) via -p:Version=<tag>, which overrides this and stamps every assembly
+    (FileVersion / AssemblyVersion). The installer takes the same value through wix -d Version, and
+    the agent reports it (Ids.IntegrationVersion reads the Contracts assembly version). So the MSI,
+    the assemblies, the Agents Version column, and the SDK login identity all show one version.
+  -->
+  <PropertyGroup>
+    <Version Condition="'$(Version)' == ''">1.0.0</Version>
+  </PropertyGroup>
+
   <!-- Milestone install paths (used by dev-deploy targets) -->
   <PropertyGroup>
     <MIPPluginsRoot>C:\Program Files\Milestone\MIPPlugins</MIPPluginsRoot>

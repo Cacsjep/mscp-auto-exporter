@@ -267,20 +267,20 @@ namespace AutoExporter.Agent
             DBExporter exporter = null;
             try
             {
-                // The constructor bool is the block (.scp) database format, which does NOT carry the
-                // Smart Client - Player. "Include player" is a separate property. Use the standard
-                // export format (false) and set ExportToDisk + IncludePlayer so the standalone
-                // player is bundled when requested.
+                // The constructor bool is the block (.scp) database format. We use the standard
+                // export format (false) and write the database plus its project file to disk. The
+                // Smart Client (TM) Player is deliberately not bundled (IncludePlayer left at its
+                // false default): the SDK can only include the player when the export runs inside the
+                // Smart Client, so a standalone service can never produce it.
                 exporter = new DBExporter(false)
                 {
                     ExportToDisk = true,
-                    IncludePlayer = job.IncludePlayer,
                     Encryption = job.Encrypt,
                     EncryptionStrength = EncryptionStrength.AES128,
                     Password = job.Password ?? "",
-                    SignExport = false,
+                    SignExport = true,
                     PreventReExport = false,
-                    IncludeBookmarks = false,
+                    IncludeBookmarks = true,
                     FailOnInvalidSignature = false
                 };
 

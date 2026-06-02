@@ -24,10 +24,24 @@ namespace AutoExporter.AdminPlugin
         private static readonly TimeSpan OnlineWithin = TimeSpan.FromSeconds(12);
         private const int RefreshIntervalMs = 3000;
 
+        // Grace window after an agent first appears, during which a not-yet-answered ping shows as
+        // "Checking..." rather than a misleading red Offline. The first pong normally arrives within
+        // a ping cycle or two, so this only ever resolves to Offline for a genuinely absent agent.
+        // Kept well under OnlineWithin so a late pong never flickers Offline -> Online.
+        private static readonly TimeSpan InitialCheckGrace = TimeSpan.FromSeconds(8);
+
+        // Live status of an agent, derived from the ping/pong round-trip.
+        private enum LiveState { Checking, Online, Offline }
+
         // hostname -> last time it answered a ping (UTC). Guarded by _gate.
         private readonly Dictionary<string, DateTime> _lastPong =
             new Dictionary<string, DateTime>(StringComparer.OrdinalIgnoreCase);
         private readonly object _gate = new object();
+
+        // hostname -> first time we listed it without a pong (UTC). UI-thread only (set in Reload).
+        // Drives the initial "Checking..." grace so a pending first ping does not flash red.
+        private readonly Dictionary<string, DateTime> _firstSeen =
+            new Dictionary<string, DateTime>(StringComparer.OrdinalIgnoreCase);
 
         private ServerId _serverId;
         private MessageCommunication _mc;
@@ -56,6 +70,7 @@ namespace AutoExporter.AdminPlugin
             _list.Columns.Add("Status", 70);
             _list.Columns.Add("Version", 60);
             _list.Columns.Add("Max GB", 60);
+            _list.Columns.Add("Used GB", 65);
             _list.Columns.Add("Max days", 65);
             _list.Columns.Add("Last seen", 140);
             _list.Columns.Add("Export folder", 240);
@@ -125,12 +140,17 @@ namespace AutoExporter.AdminPlugin
             return null;
         }
 
-        // Online when the agent answered a ping within the window.
-        private bool IsOnline(string hostname)
+        // Online when the agent answered a ping within the window. Checking while a first answer is
+        // still pending inside the grace window. Offline only once the grace has elapsed with no pong.
+        private LiveState StateFor(string hostname)
         {
-            if (string.IsNullOrEmpty(hostname)) return false;
+            if (string.IsNullOrEmpty(hostname)) return LiveState.Offline;
             lock (_gate)
-                return _lastPong.TryGetValue(hostname, out var t) && DateTime.UtcNow - t <= OnlineWithin;
+                if (_lastPong.TryGetValue(hostname, out var t) && DateTime.UtcNow - t <= OnlineWithin)
+                    return LiveState.Online;
+            if (_firstSeen.TryGetValue(hostname, out var first) && DateTime.UtcNow - first <= InitialCheckGrace)
+                return LiveState.Checking;
+            return LiveState.Offline;
         }
 
         public void Reload()
@@ -144,21 +164,56 @@ namespace AutoExporter.AdminPlugin
             _list.Items.Clear();
             foreach (var reg in ReadAgents())
             {
-                bool online = IsOnline(reg.Hostname);
+                // Stamp the first time we see an agent with no pong yet, so the grace window is
+                // measured from when it appeared (covers both initial open and a later-starting agent).
+                if (!string.IsNullOrEmpty(reg.Hostname) && !_firstSeen.ContainsKey(reg.Hostname))
+                    _firstSeen[reg.Hostname] = DateTime.UtcNow;
+
+                var state = StateFor(reg.Hostname);
                 var item = new ListViewItem(reg.FriendlyName) { Tag = reg };
                 item.SubItems.Add(reg.Hostname);
-                item.SubItems.Add(online ? "Online" : "Offline");
+                item.SubItems.Add(StatusText(state));
                 item.SubItems.Add(string.IsNullOrEmpty(reg.Version) ? "-" : reg.Version);
                 item.SubItems.Add(reg.MaxGB > 0 ? reg.MaxGB.ToString() : "Unlimited");
+                item.SubItems.Add(UsedText(reg.UsedBytes));
                 item.SubItems.Add(reg.RetentionDays > 0 ? reg.RetentionDays.ToString() : "Unlimited");
                 item.SubItems.Add(LastSeenText(reg));
                 item.SubItems.Add(reg.ExportFolder ?? "");
-                item.ForeColor = online ? Color.ForestGreen : Color.Firebrick;
+                item.ForeColor = StatusColor(state);
                 if (reg.Hostname == selectedHost) item.Selected = true;
                 _list.Items.Add(item);
             }
             _list.EndUpdate();
             UpdateButtons();
+        }
+
+        // Export folder usage as GB. Shows a small but non-zero store as "<0.1" rather than "0" so
+        // the operator can tell "nothing exported yet" from "a little exported".
+        private static string UsedText(long bytes)
+        {
+            if (bytes <= 0) return "0";
+            double gb = bytes / (1024.0 * 1024.0 * 1024.0);
+            return gb < 0.1 ? "<0.1" : gb.ToString("0.0");
+        }
+
+        private static string StatusText(LiveState state)
+        {
+            switch (state)
+            {
+                case LiveState.Online: return "Online";
+                case LiveState.Checking: return "Checking...";
+                default: return "Offline";
+            }
+        }
+
+        private static Color StatusColor(LiveState state)
+        {
+            switch (state)
+            {
+                case LiveState.Online: return Color.ForestGreen;
+                case LiveState.Checking: return Color.Gray;
+                default: return Color.Firebrick;
+            }
         }
 
         // Prefer the live ping time (the config LastSeenUtc read is cached and goes stale).
@@ -175,13 +230,13 @@ namespace AutoExporter.AdminPlugin
         {
             _remove.Enabled = _list.SelectedItems.Count > 0
                               && _list.SelectedItems[0].Tag is AgentRegistration reg
-                              && !IsOnline(reg.Hostname);
+                              && StateFor(reg.Hostname) == LiveState.Offline;
         }
 
         private void RemoveSelected()
         {
             if (_list.SelectedItems.Count == 0 || !(_list.SelectedItems[0].Tag is AgentRegistration reg)) return;
-            if (IsOnline(reg.Hostname)) return;
+            if (StateFor(reg.Hostname) != LiveState.Offline) return;
 
             var jobs = JobsForAgent(reg.Hostname);
             var prompt = jobs.Count == 0

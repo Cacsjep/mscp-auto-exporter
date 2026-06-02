@@ -18,6 +18,7 @@ namespace AutoExporter.Contracts.Tests
                 ExportFolder = @"C:\Exports",
                 MaxGB = 100,
                 RetentionDays = 30,
+                UsedBytes = 5L * 1024 * 1024 * 1024,
                 DisplayName = "Lobby agent",
             };
 
@@ -29,6 +30,7 @@ namespace AutoExporter.Contracts.Tests
             Assert.Equal(@"C:\Exports", loaded.ExportFolder);
             Assert.Equal(100, loaded.MaxGB);
             Assert.Equal(30, loaded.RetentionDays);
+            Assert.Equal(5L * 1024 * 1024 * 1024, loaded.UsedBytes);
             Assert.Equal("Lobby agent", loaded.DisplayName);
         }
 

@@ -7,7 +7,7 @@
     deploy targets (Directory.Build.targets) stay out of the way, then this script does
     the install/restart steps explicitly.
 
-      - plugin    : build AdminPlugin -> copy to MIPPlugins\AutoExporterV2 -> restart Event Server
+      - plugin    : build AdminPlugin -> copy to MIPPlugins\AutoExporter -> restart Event Server
       - agent     : build Agent -> stop service -> copy to install dir -> (re)install + start
       - tray      : publish Tray single-file self-contained exe
       - installer : build agent + publish tray -> package the V2 WiX MSI (agent service + tray)
@@ -37,6 +37,10 @@ param(
     [ValidateSet('Debug', 'Release')]
     [string]$Configuration = 'Debug',
 
+    # Product version stamped into the assemblies and the MSI. CI passes the release tag
+    # (without the leading v). Local builds default to 1.0.0.
+    [string]$Version = '1.0.0',
+
     [switch]$NoRestart
 )
 
@@ -44,16 +48,16 @@ $ErrorActionPreference = 'Stop'
 $root = $PSScriptRoot
 
 # Install targets
-$MipPluginDir   = 'C:\Program Files\Milestone\MIPPlugins\AutoExporterV2'
-$AgentInstallDir = 'C:\Program Files\MSCPlugins\AutoExporterAgent'
+$MipPluginDir   = 'C:\Program Files\Milestone\MIPPlugins\AutoExporter'
+$AgentInstallDir = 'C:\Program Files\MSCPlugins\AutoExporter'
 $EventServerSvc = 'MilestoneEventServerService'
 $AgentSvc       = 'AutoExporterAgent'
 
 function Write-Step($msg) { Write-Host "==> $msg" -ForegroundColor Cyan }
 
 function Invoke-Build($project) {
-    Write-Step "build $project ($Configuration)"
-    dotnet build (Join-Path $root $project) -c $Configuration -p:CIBuild=true --nologo
+    Write-Step "build $project ($Configuration, v$Version)"
+    dotnet build (Join-Path $root $project) -c $Configuration -p:CIBuild=true -p:Version=$Version --nologo
     if ($LASTEXITCODE -ne 0) { throw "build failed: $project" }
 }
 
@@ -107,7 +111,7 @@ function Build-Agent {
 function Build-Tray {
     Write-Step "publish tray ($Configuration, single-file win-x64)"
     dotnet publish (Join-Path $root 'src\AutoExporter.Tray\AutoExporter.Tray.csproj') `
-        -c $Configuration -r win-x64 --nologo -p:CIBuild=true
+        -c $Configuration -r win-x64 --nologo -p:CIBuild=true -p:Version=$Version
     if ($LASTEXITCODE -ne 0) { throw 'publish failed: tray' }
     $pub = Join-Path $root "src\AutoExporter.Tray\bin\$Configuration\net9.0-windows\win-x64\publish"
     Write-Step "tray published to: $pub"
@@ -145,6 +149,7 @@ function Build-Installer {
     # -bindpath lets wix resolve License.rtf (and other relative payload) from the installer folder.
     & wix build $wxs -arch x64 -bindpath $installerDir `
         -ext WixToolset.UI.wixext -ext WixToolset.Util.wixext `
+        -d "Version=$Version" `
         -d "AgentDir=$agentDir" -d "TrayExe=$trayExe" -d "PluginDir=$pluginDir" -o $msi
     if ($LASTEXITCODE -ne 0) { throw 'wix build failed' }
     Write-Step "installer built: $msi"

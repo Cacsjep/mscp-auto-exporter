@@ -19,7 +19,8 @@ namespace AutoExporter.Contracts
         public string ExportFolder = "";    // informational, for the admin to see
         public int MaxGB;                    // agent-wide export-folder size cap (0 = unlimited)
         public int RetentionDays;            // agent-wide retention (0 = unlimited)
-        public string DisplayName = "";      // admin-set friendly name (UI only), preserved by the agent
+        public long UsedBytes;               // current total size of the export folder, refreshed on heartbeat
+        public string DisplayName = "";      // agent-set friendly name (from the tray config)
 
         public static class Keys
         {
@@ -30,6 +31,7 @@ namespace AutoExporter.Contracts
             public const string ExportFolder = "ExportFolder";
             public const string MaxGB = "MaxGB";
             public const string RetentionDays = "RetentionDays";
+            public const string UsedBytes = "UsedBytes";
             public const string DisplayName = "DisplayName";
         }
 
@@ -56,6 +58,7 @@ namespace AutoExporter.Contracts
             [Keys.ExportFolder] = ExportFolder ?? "",
             [Keys.MaxGB] = MaxGB.ToString(CultureInfo.InvariantCulture),
             [Keys.RetentionDays] = RetentionDays.ToString(CultureInfo.InvariantCulture),
+            [Keys.UsedBytes] = UsedBytes.ToString(CultureInfo.InvariantCulture),
             [Keys.DisplayName] = DisplayName ?? "",
         };
 
@@ -63,6 +66,7 @@ namespace AutoExporter.Contracts
         {
             string Get(string k) => p != null && p.TryGetValue(k, out var v) && v != null ? v : "";
             int GetInt(string k) => int.TryParse(Get(k), NumberStyles.Integer, CultureInfo.InvariantCulture, out var n) ? n : 0;
+            long GetLong(string k) => long.TryParse(Get(k), NumberStyles.Integer, CultureInfo.InvariantCulture, out var n) ? n : 0;
             DateTime.TryParse(Get(Keys.LastSeenUtc), CultureInfo.InvariantCulture,
                 DateTimeStyles.RoundtripKind, out var seen);
             return new AgentRegistration
@@ -74,6 +78,7 @@ namespace AutoExporter.Contracts
                 ExportFolder = Get(Keys.ExportFolder),
                 MaxGB = GetInt(Keys.MaxGB),
                 RetentionDays = GetInt(Keys.RetentionDays),
+                UsedBytes = GetLong(Keys.UsedBytes),
                 DisplayName = Get(Keys.DisplayName),
             };
         }

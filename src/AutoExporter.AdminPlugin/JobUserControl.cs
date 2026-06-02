@@ -18,12 +18,20 @@ namespace AutoExporter.AdminPlugin
         private readonly TextBox _txtName = new TextBox();
         private readonly CheckBox _chkEnabled = new CheckBox { Text = "Enabled", Checked = true };
         private readonly ComboBox _cboAgent = new ComboBox { DropDownStyle = ComboBoxStyle.DropDownList, Width = 320 };
-        private readonly RadioButton _radXProtect = new RadioButton { Text = "XProtect format", Checked = true, AutoSize = true };
-        private readonly RadioButton _radAvi = new RadioButton { Text = "AVI", AutoSize = true };
+        private readonly RadioButton _radXProtect = new RadioButton { Text = "XProtect (TM) format", AutoSize = true };
+        private readonly RadioButton _radAvi = new RadioButton { Text = "AVI", Checked = true, AutoSize = true };
+        private readonly Label _lblFormatHint = new Label
+        {
+            AutoSize = true,
+            MaximumSize = new System.Drawing.Size(360, 0),
+            ForeColor = System.Drawing.SystemColors.GrayText,
+            Text = "XProtect (TM) format writes the database and a project file. The Smart Client (TM) " +
+                   "Player cannot be bundled here: Milestone only adds it when the export runs inside " +
+                   "the Smart Client. Open the export in a Smart Client (TM) to play it, or use AVI for " +
+                   "a standalone video file.",
+        };
         private readonly CheckBox _chkEncrypt = new CheckBox { Text = "Encrypt", AutoSize = true };
         private readonly TextBox _txtPassword = new TextBox { UseSystemPasswordChar = true, Width = 180 };
-        private readonly CheckBox _chkIncludePlayer = new CheckBox { Text = "Include player", Checked = true, AutoSize = true };
-        private readonly CheckBox _chkIncludeAudio = new CheckBox { Text = "Include audio", Checked = true, AutoSize = true };
         private readonly NumericUpDown _numRangeValue = new NumericUpDown { Minimum = 1, Maximum = 100000, Value = 1, Width = 70 };
         private readonly ComboBox _cboRangeUnit = new ComboBox { DropDownStyle = ComboBoxStyle.DropDownList, Width = 100 };
         private readonly ListBox _lstTargets = new ListBox { SelectionMode = SelectionMode.MultiExtended, Height = 120 };
@@ -62,8 +70,6 @@ namespace AutoExporter.AdminPlugin
             _chkEnabled.CheckedChanged += (_, __) => RaiseChanged();
             _cboAgent.SelectedIndexChanged += (_, __) => RaiseChanged();
             _txtPassword.TextChanged += (_, __) => RaiseChanged();
-            _chkIncludePlayer.CheckedChanged += (_, __) => RaiseChanged();
-            _chkIncludeAudio.CheckedChanged += (_, __) => RaiseChanged();
             _numRangeValue.ValueChanged += (_, __) => RaiseChanged();
             _cboRangeUnit.SelectedIndexChanged += (_, __) => RaiseChanged();
         }
@@ -98,8 +104,8 @@ namespace AutoExporter.AdminPlugin
             AddRow(root, "", _chkEnabled);
             AddRow(root, "Agent", _cboAgent);
             AddRow(root, "Format", Flow(_radXProtect, _radAvi));
+            AddRow(root, "", _lblFormatHint);
             AddRow(root, "Encryption", Flow(_chkEncrypt, _txtPassword));
-            AddRow(root, "Options", Flow(_chkIncludePlayer, _chkIncludeAudio));
             AddRow(root, "Time range", Flow(new Label { Text = "Last", AutoSize = true, Anchor = AnchorStyles.Left, Padding = new Padding(0, 6, 0, 0) }, _numRangeValue, _cboRangeUnit));
 
             var targetButtons = new FlowLayoutPanel { FlowDirection = FlowDirection.LeftToRight, AutoSize = true };
@@ -170,8 +176,6 @@ namespace AutoExporter.AdminPlugin
                 _radAvi.Checked = job.Format == "AVI";
                 _chkEncrypt.Checked = job.Encrypt;
                 _txtPassword.Text = job.Password;
-                _chkIncludePlayer.Checked = job.IncludePlayer;
-                _chkIncludeAudio.Checked = job.IncludeAudio;
                 _numRangeValue.Value = Clamp(job.RangeValue, _numRangeValue.Minimum, _numRangeValue.Maximum);
                 _cboRangeUnit.SelectedItem = _cboRangeUnit.Items.Contains(job.RangeUnit) ? job.RangeUnit : "Days";
 
@@ -201,11 +205,9 @@ namespace AutoExporter.AdminPlugin
                 _txtName.Text = "";
                 _chkEnabled.Checked = true;
                 if (_cboAgent.Items.Count > 0) _cboAgent.SelectedIndex = 0;
-                _radXProtect.Checked = true;
+                _radAvi.Checked = true;
                 _chkEncrypt.Checked = false;
                 _txtPassword.Text = "";
-                _chkIncludePlayer.Checked = true;
-                _chkIncludeAudio.Checked = true;
                 _numRangeValue.Value = 1;
                 _cboRangeUnit.SelectedItem = "Days";
                 _lstTargets.Items.Clear();
@@ -239,8 +241,7 @@ namespace AutoExporter.AdminPlugin
                 Format = _radAvi.Checked ? "AVI" : "XProtect",
                 Encrypt = _chkEncrypt.Checked,
                 Password = _txtPassword.Text,
-                IncludePlayer = _chkIncludePlayer.Checked,
-                IncludeAudio = _chkIncludeAudio.Checked,
+                IncludeAudio = true,   // audio is always exported (the UI option was removed)
                 RangeValue = (int)_numRangeValue.Value,
                 RangeUnit = _cboRangeUnit.SelectedItem?.ToString() ?? "Days",
             };
@@ -298,12 +299,7 @@ namespace AutoExporter.AdminPlugin
             bool xp = _radXProtect.Checked;
             _chkEncrypt.Enabled = xp;
             _txtPassword.Enabled = xp && _chkEncrypt.Checked;
-            _chkIncludePlayer.Enabled = xp;
-            if (!xp)
-            {
-                _chkEncrypt.Checked = false;
-                _chkIncludePlayer.Checked = false;
-            }
+            if (!xp) _chkEncrypt.Checked = false;
         }
 
         private static decimal Clamp(int value, decimal min, decimal max)

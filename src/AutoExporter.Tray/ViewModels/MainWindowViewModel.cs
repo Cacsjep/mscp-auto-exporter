@@ -17,6 +17,7 @@ namespace AutoExporter.Tray.ViewModels
     /// </summary>
     public partial class MainWindowViewModel : ObservableObject
     {
+        [ObservableProperty] private string _displayName = "";
         [ObservableProperty] private string _exportFolder = "";
         [ObservableProperty] private int _maxGB;
         [ObservableProperty] private int _retentionDays;
@@ -138,6 +139,7 @@ namespace AutoExporter.Tray.ViewModels
             AuthMode = cfg.AuthMode;
             Username = cfg.Username;
             Password = cfg.Password;
+            DisplayName = cfg.DisplayName;
             ExportFolder = cfg.ExportFolder;
             MaxGB = cfg.MaxGB;
             RetentionDays = cfg.RetentionDays;
@@ -153,6 +155,7 @@ namespace AutoExporter.Tray.ViewModels
             AuthMode = AuthMode,
             Username = Username,
             Password = Password,
+            DisplayName = DisplayName,
             ExportFolder = ExportFolder,
             MaxGB = MaxGB,
             RetentionDays = RetentionDays,
