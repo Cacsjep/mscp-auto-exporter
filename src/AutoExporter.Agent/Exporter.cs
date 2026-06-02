@@ -18,7 +18,6 @@ namespace AutoExporter.Agent
         public long BytesWritten;
         public List<string> CameraNames = new List<string>();
         public List<string> SkippedCameras = new List<string>();
-        public List<string> UnresolvedTargets = new List<string>();
     }
 
     /// <summary>
@@ -45,7 +44,6 @@ namespace AutoExporter.Agent
             try
             {
                 var cameras = ResolveCameras(job, out var unresolved);
-                result.UnresolvedTargets = unresolved;
                 Log.Info($"Resolve targets={job.Targets?.Count ?? 0} cameras={cameras.Count} unresolved/skipped={unresolved.Count}");
                 if (cameras.Count == 0)
                 {

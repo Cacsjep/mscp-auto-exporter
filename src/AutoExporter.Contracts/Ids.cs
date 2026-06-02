@@ -16,11 +16,10 @@ namespace AutoExporter.Contracts
         public static readonly Guid BackgroundPluginId = new Guid("4D6F8A2B-1C3E-4F50-A6B7-8C9D0E1F2A3B");
 
         // ── Tree item kinds ─────────────────────────────────────────────
-        // Tree: Exporter (plugin) -> Agents -> Agent <Hostname> -> Jobs -> Job-A/B
-        public static readonly Guid AgentsFolderId     = new Guid("6A1B2C3D-4E5F-4071-8293-A4B5C6D7E8F9"); // static container node
-        public static readonly Guid AgentKindId        = new Guid("3C1A7F92-8D4E-4B61-A2F5-6E9D0C3B5471"); // one item per agent, service-written
-        public static readonly Guid JobKindId          = new Guid("9F4D2E18-5A6B-4C7D-8E90-1F2A3B4C5D6E"); // admin-created job, scoped to an agent by property
-        public static readonly Guid StatusKindId       = new Guid("2B5E8C1F-3A4D-4E6F-9012-3456789ABCDE"); // legacy status kind (unused tree node)
+        // Storage kinds, not literal tree nodes: one Agent item per agent (the service writes it on
+        // self-registration) and one Job item per admin-created job (scoped to an agent by property).
+        public static readonly Guid AgentKindId        = new Guid("3C1A7F92-8D4E-4B61-A2F5-6E9D0C3B5471");
+        public static readonly Guid JobKindId          = new Guid("9F4D2E18-5A6B-4C7D-8E90-1F2A3B4C5D6E");
 
         // The single tree node the plugin shows. Clicking it opens our own tabbed page
         // (Executions / Jobs / Agents); everything else is driven by the Configuration API.
@@ -58,9 +57,6 @@ namespace AutoExporter.Contracts
 
         // agent -> Event Server bridge: raise a MIP job event. Data = JobEventNotice (encoded).
         public const string JobEvent = "AutoExporter.JobEvent";
-
-        // agent -> any listener: progress + lifecycle (optional, for live UI later).
-        public const string Progress = "AutoExporter.Progress";
 
         // admin Status view -> agents: send your recent executions. Data = empty (broadcast).
         public const string QueryExecutions = "AutoExporter.QueryExecutions";

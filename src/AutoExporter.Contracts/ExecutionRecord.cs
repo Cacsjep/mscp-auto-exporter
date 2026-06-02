@@ -7,7 +7,6 @@ namespace AutoExporter.Contracts
     /// One completed (or in-flight) export run. The agent appends these to a JSONL log and
     /// surfaces recent ones to the admin Status/Executions view.
     /// </summary>
-    [Serializable]
     public sealed class ExecutionRecord
     {
         public Guid RunId;
