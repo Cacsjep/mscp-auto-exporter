@@ -27,7 +27,9 @@ jobs:
       - name: Install WiX CLI
         shell: pwsh
         run: |
-          dotnet tool install --global wix
+          # Pin to major 5 so the CLI matches the WiX v5 extensions build.ps1 adds (an unpinned
+          # install can pull a newer major whose extension resolution then fails with WIX0144).
+          dotnet tool install --global wix --version 5.*
           echo "$env:USERPROFILE\.dotnet\tools" >> $env:GITHUB_PATH
 
       - name: Resolve version from tag

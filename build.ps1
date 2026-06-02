@@ -124,10 +124,15 @@ function Build-Installer {
         throw "WiX v5 CLI not found. Install it with: dotnet tool install --global wix"
     }
 
-    # The UI (feature tree + license) and Util (WixQuietExec64) extensions. Adding is idempotent.
+    # The UI (feature tree + license) and Util (WixQuietExec64) extensions. Pin them to major 5 so
+    # they match the WiX v5 CLI (an unversioned add can resolve a mismatched extension on a fresh CI
+    # runner and then 'wix build -ext ...' fails with WIX0144 not found). Adding is idempotent. Fail
+    # loudly if an add does not succeed, instead of discovering it later as a confusing build error.
     Write-Step "ensure WiX extensions (UI, Util)"
-    & wix extension add -g WixToolset.UI.wixext | Out-Null
-    & wix extension add -g WixToolset.Util.wixext | Out-Null
+    & wix extension add -g WixToolset.UI.wixext/5
+    if ($LASTEXITCODE -ne 0) { throw "wix extension add WixToolset.UI.wixext/5 failed" }
+    & wix extension add -g WixToolset.Util.wixext/5
+    if ($LASTEXITCODE -ne 0) { throw "wix extension add WixToolset.Util.wixext/5 failed" }
 
     # Build all three payloads (no service install / restart needed just to package).
     Invoke-Build 'src\AutoExporter.Agent\AutoExporter.Agent.csproj'
