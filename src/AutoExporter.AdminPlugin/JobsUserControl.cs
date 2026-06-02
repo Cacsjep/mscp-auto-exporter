@@ -107,6 +107,7 @@ namespace AutoExporter.AdminPlugin
             _list.Items.Clear();
             try
             {
+                var friendly = AgentsUserControl.FriendlyNames();
                 var items = Configuration.Instance.GetItemConfigurations(Ids.PluginId, null, Ids.JobKindId) ?? new List<Item>();
                 foreach (var it in items)
                 {
@@ -114,7 +115,8 @@ namespace AutoExporter.AdminPlugin
                     var job = JobConfig.FromProperties(it.Properties);
                     var row = new ListViewItem(string.IsNullOrEmpty(it.Name) ? job.Name : it.Name) { Tag = it };
                     row.SubItems.Add(job.Enabled ? "Yes" : "No");
-                    row.SubItems.Add(string.IsNullOrEmpty(job.AgentHostname) ? "(none)" : job.AgentHostname);
+                    row.SubItems.Add(string.IsNullOrEmpty(job.AgentHostname)
+                        ? "(none)" : AgentsUserControl.FriendlyName(job.AgentHostname, friendly));
                     row.SubItems.Add(job.Format);
                     row.SubItems.Add($"Last {job.RangeValue} {job.RangeUnit}");
                     row.SubItems.Add(job.Targets.Count.ToString());
@@ -137,12 +139,12 @@ namespace AutoExporter.AdminPlugin
             _list.EndUpdate();
         }
 
-        private static List<string> AgentHostnames()
-            => AgentsUserControl.ReadAgents().Select(a => a.Hostname).Where(h => !string.IsNullOrWhiteSpace(h)).Distinct().ToList();
+        private static List<AgentRegistration> Agents()
+            => AgentsUserControl.ReadAgents().Where(a => !string.IsNullOrWhiteSpace(a.Hostname)).ToList();
 
         private void AddJob()
         {
-            using (var dlg = new JobEditorForm("Add job", new JobConfig(), AgentHostnames()))
+            using (var dlg = new JobEditorForm("Add job", new JobConfig(), Agents()))
             {
                 if (dlg.ShowDialog(this) != DialogResult.OK) return;
                 try
@@ -166,7 +168,7 @@ namespace AutoExporter.AdminPlugin
             var item = SelectedItem();
             if (item == null) return;
             var job = JobConfig.FromProperties(item.Properties);
-            using (var dlg = new JobEditorForm("Edit job", job, AgentHostnames()))
+            using (var dlg = new JobEditorForm("Edit job", job, Agents()))
             {
                 if (dlg.ShowDialog(this) != DialogResult.OK) return;
                 try

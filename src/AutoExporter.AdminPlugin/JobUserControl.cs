@@ -25,10 +25,8 @@ namespace AutoExporter.AdminPlugin
             AutoSize = true,
             MaximumSize = new System.Drawing.Size(360, 0),
             ForeColor = System.Drawing.SystemColors.GrayText,
-            Text = "XProtect (TM) format writes the database and a project file. The Smart Client (TM) " +
-                   "Player cannot be bundled here: Milestone only adds it when the export runs inside " +
-                   "the Smart Client. Open the export in a Smart Client (TM) to play it, or use AVI for " +
-                   "a standalone video file.",
+            Text = "XProtect (TM) format opens only in a Smart Client (TM) (the standalone player " +
+                   "cannot be bundled here). Use AVI for a file that plays anywhere.",
         };
         private readonly CheckBox _chkEncrypt = new CheckBox { Text = "Encrypt", AutoSize = true };
         private readonly TextBox _txtPassword = new TextBox { UseSystemPasswordChar = true, Width = 180 };
@@ -144,18 +142,23 @@ namespace AutoExporter.AdminPlugin
 
         // ----- Agents -----
 
-        /// <summary>Fill the agent dropdown with the known registered agent hostnames.</summary>
-        public void SetAgents(IEnumerable<string> hostnames)
+        /// <summary>
+        /// Fill the agent dropdown with the known registered agents. The list shows each agent's
+        /// friendly name (its display name when set, else the hostname) but the job still stores the
+        /// hostname, which is the stable key used to route the job to its agent.
+        /// </summary>
+        public void SetAgents(IEnumerable<AgentRegistration> agents)
         {
             _suspendDirty = true;
             try
             {
-                var current = _cboAgent.SelectedItem as string;
+                var current = (_cboAgent.SelectedItem as AgentChoice)?.Hostname;
                 _cboAgent.Items.Clear();
-                foreach (var h in hostnames ?? Enumerable.Empty<string>())
-                    if (!string.IsNullOrWhiteSpace(h)) _cboAgent.Items.Add(h);
-                if (current != null && _cboAgent.Items.Contains(current)) _cboAgent.SelectedItem = current;
-                else if (_cboAgent.Items.Count > 0) _cboAgent.SelectedIndex = 0;
+                var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+                foreach (var a in agents ?? Enumerable.Empty<AgentRegistration>())
+                    if (a != null && !string.IsNullOrWhiteSpace(a.Hostname) && seen.Add(a.Hostname))
+                        _cboAgent.Items.Add(new AgentChoice(a.Hostname, a.FriendlyName));
+                SelectAgent(current);
             }
             finally { _suspendDirty = false; }
         }
@@ -191,10 +194,20 @@ namespace AutoExporter.AdminPlugin
         {
             if (!string.IsNullOrEmpty(hostname))
             {
-                if (!_cboAgent.Items.Contains(hostname)) _cboAgent.Items.Add(hostname);
-                _cboAgent.SelectedItem = hostname;
+                foreach (var obj in _cboAgent.Items)
+                    if (obj is AgentChoice c && string.Equals(c.Hostname, hostname, StringComparison.OrdinalIgnoreCase))
+                    {
+                        _cboAgent.SelectedItem = obj;
+                        return;
+                    }
+                // The job points at an agent that is not currently registered (offline or removed).
+                // Keep the assignment by adding a placeholder row so it is not silently reassigned.
+                var placeholder = new AgentChoice(hostname, hostname);
+                _cboAgent.Items.Add(placeholder);
+                _cboAgent.SelectedItem = placeholder;
+                return;
             }
-            else if (_cboAgent.Items.Count > 0) _cboAgent.SelectedIndex = 0;
+            if (_cboAgent.Items.Count > 0) _cboAgent.SelectedIndex = 0;
         }
 
         public void ClearContent()
@@ -237,7 +250,7 @@ namespace AutoExporter.AdminPlugin
             {
                 Name = _txtName.Text.Trim(),
                 Enabled = _chkEnabled.Checked,
-                AgentHostname = _cboAgent.SelectedItem as string ?? "",
+                AgentHostname = (_cboAgent.SelectedItem as AgentChoice)?.Hostname ?? "",
                 Format = _radAvi.Checked ? "AVI" : "XProtect",
                 Encrypt = _chkEncrypt.Checked,
                 Password = _txtPassword.Text,
@@ -307,6 +320,16 @@ namespace AutoExporter.AdminPlugin
             if (value < min) return min;
             if (value > max) return max;
             return value;
+        }
+
+        // An agent entry in the dropdown: shows the friendly name, carries the hostname (the value
+        // stored on the job).
+        private sealed class AgentChoice
+        {
+            public readonly string Hostname;
+            private readonly string _display;
+            public AgentChoice(string hostname, string display) { Hostname = hostname; _display = display; }
+            public override string ToString() => string.IsNullOrWhiteSpace(_display) ? Hostname : _display;
         }
 
         // Wraps a JobTarget so the ListBox shows a friendly label.

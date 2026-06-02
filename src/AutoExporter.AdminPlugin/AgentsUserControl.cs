@@ -376,6 +376,26 @@ namespace AutoExporter.AdminPlugin
             return result;
         }
 
+        // hostname -> friendly display name (the agent's DisplayName when set, else the hostname).
+        // Built from the registered agents so a configured friendly name shows everywhere an agent is
+        // referenced by hostname (Jobs list, job editor, Executions), not just in the Agents list.
+        internal static Dictionary<string, string> FriendlyNames()
+        {
+            var map = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+            foreach (var a in ReadAgents())
+                if (!string.IsNullOrEmpty(a.Hostname)) map[a.Hostname] = a.FriendlyName;
+            return map;
+        }
+
+        // The friendly name for a hostname, or the hostname itself when it is unknown. Pass a map from
+        // FriendlyNames() when resolving many rows so the agent list is read once.
+        internal static string FriendlyName(string hostname, IDictionary<string, string> map = null)
+        {
+            if (string.IsNullOrEmpty(hostname)) return "";
+            map = map ?? FriendlyNames();
+            return map.TryGetValue(hostname, out var f) && !string.IsNullOrWhiteSpace(f) ? f : hostname;
+        }
+
         protected override void Dispose(bool disposing)
         {
             if (disposing) { _timer.Stop(); _timer.Dispose(); StopMessaging(); }

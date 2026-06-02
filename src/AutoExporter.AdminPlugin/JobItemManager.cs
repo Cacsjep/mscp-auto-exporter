@@ -41,7 +41,7 @@ namespace AutoExporter.AdminPlugin
         public override void FillUserControl(Item item)
         {
             CurrentItem = item;
-            _editor?.SetAgents(AgentHostnames());
+            _editor?.SetAgents(Agents());
             _editor?.FillContent(item?.Properties != null ? JobConfig.FromProperties(item.Properties) : new JobConfig());
         }
 
@@ -100,10 +100,10 @@ namespace AutoExporter.AdminPlugin
         {
             if (item?.Properties == null) return "";
             var j = JobConfig.FromProperties(item.Properties);
-            return j.Enabled ? $"{j.Format} on '{j.AgentHostname}'" : "Disabled";
+            return j.Enabled ? $"{j.Format} on '{AgentsUserControl.FriendlyName(j.AgentHostname)}'" : "Disabled";
         }
 
-        private static List<string> AgentHostnames()
-            => AgentsUserControl.ReadAgents().Select(a => a.Hostname).Where(h => !string.IsNullOrWhiteSpace(h)).Distinct().ToList();
+        private static List<AgentRegistration> Agents()
+            => AgentsUserControl.ReadAgents().Where(a => !string.IsNullOrWhiteSpace(a.Hostname)).ToList();
     }
 }

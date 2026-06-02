@@ -11,7 +11,7 @@ namespace AutoExporter.AdminPlugin
 
         public JobConfig Result { get; private set; }
 
-        public JobEditorForm(string title, JobConfig job, IEnumerable<string> agentHostnames)
+        public JobEditorForm(string title, JobConfig job, IEnumerable<AgentRegistration> agents)
         {
             Text = title;
             Width = 560;
@@ -21,7 +21,7 @@ namespace AutoExporter.AdminPlugin
             MaximizeBox = false;
             ShowInTaskbar = false;
 
-            _editor.SetAgents(agentHostnames);
+            _editor.SetAgents(agents);
             _editor.FillContent(job);
 
             var buttons = new FlowLayoutPanel

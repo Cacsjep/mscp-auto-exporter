@@ -212,13 +212,15 @@ namespace AutoExporter.AdminPlugin
             }
             snapshot.Sort((a, b) => b.StartedUtc.CompareTo(a.StartedUtc));
 
+            var friendly = AgentsUserControl.FriendlyNames();
+
             _list.BeginUpdate();
             _list.Items.Clear();
             foreach (var r in snapshot)
             {
                 var item = new ListViewItem(ToLocal(r.StartedUtc));
                 item.SubItems.Add(r.JobName ?? "");
-                item.SubItems.Add(r.AgentHostname ?? "");
+                item.SubItems.Add(AgentsUserControl.FriendlyName(r.AgentHostname, friendly));
                 item.SubItems.Add(r.Outcome ?? (r.Success ? "Success" : "Failed"));
                 item.SubItems.Add(r.CameraCount.ToString(CultureInfo.InvariantCulture));
                 item.SubItems.Add(HumanSize(r.BytesWritten));
