@@ -139,8 +139,7 @@ namespace AutoExporter.AdminPlugin
             _list.EndUpdate();
         }
 
-        private static List<AgentRegistration> Agents()
-            => AgentsUserControl.ReadAgents().Where(a => !string.IsNullOrWhiteSpace(a.Hostname)).ToList();
+        private static List<AgentRegistration> Agents() => AgentsUserControl.KnownAgents();
 
         private void AddJob()
         {

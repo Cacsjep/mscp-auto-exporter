@@ -28,6 +28,7 @@ namespace AutoExporter.AdminPlugin
             HideSelection = false,
         };
         private readonly Button _clear = new Button { Text = "Clear history", Width = 90, Height = 23 };
+        private readonly Button _stop = new Button { Text = "Stop run", Width = 80, Height = 23 };
         private readonly Label _status = new Label { AutoSize = true, Padding = new Padding(8, 6, 0, 0) };
         private readonly Timer _timer = new Timer { Interval = RefreshIntervalMs };
 
@@ -51,6 +52,7 @@ namespace AutoExporter.AdminPlugin
         {
             BuildLayout();
             _clear.Click += (_, __) => ClearHistory();
+            _stop.Click += (_, __) => StopSelected();
             _timer.Tick += (_, __) => Query(reset: false);
             HandleCreated += (_, __) => { StartMessaging(); _timer.Start(); };
             HandleDestroyed += (_, __) => { _timer.Stop(); StopMessaging(); };
@@ -77,6 +79,7 @@ namespace AutoExporter.AdminPlugin
                 FlowDirection = FlowDirection.LeftToRight,
             };
             top.Controls.Add(_clear);
+            top.Controls.Add(_stop);
             top.Controls.Add(_status);
 
             Controls.Add(_list);
@@ -190,6 +193,42 @@ namespace AutoExporter.AdminPlugin
             RenderList();
         }
 
+        // Ask the owning agent to stop the selected run. Only a queued (Pending) or in-progress
+        // (Running) run can be stopped; the agent drops it from its queue or cancels the export.
+        private void StopSelected()
+        {
+            if (_list.SelectedItems.Count == 0 || !(_list.SelectedItems[0].Tag is ExecutionRecord rec))
+            {
+                SetStatus("Select a running or pending run to stop.");
+                return;
+            }
+            var outcome = (rec.Outcome ?? "").ToLowerInvariant();
+            if (!outcome.Contains("pending") && !outcome.Contains("running"))
+            {
+                MessageBox.Show(this, "Only a running or pending run can be stopped.",
+                    "Stop run", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                return;
+            }
+            try
+            {
+                var req = new TriggerRequest
+                {
+                    JobObjectId = rec.JobObjectId,
+                    AgentHostname = rec.AgentHostname,
+                    TriggerSource = "Stop",
+                    RunId = rec.RunId,
+                };
+                _mc?.TransmitMessage(new MipMessage(Messages.StopJob, req.Encode()), null, null, null);
+                SetStatus($"Stop requested for '{rec.JobName}'.");
+            }
+            catch (Exception ex)
+            {
+                PluginFileLog.Error("StopJob send failed: " + ex.Message);
+                MessageBox.Show(this, "Could not send the stop request: " + ex.Message,
+                    "Stop run", MessageBoxButtons.OK, MessageBoxIcon.Error);
+            }
+        }
+
         // ----- Rendering -----
 
         private void PostRender()
@@ -218,7 +257,7 @@ namespace AutoExporter.AdminPlugin
             _list.Items.Clear();
             foreach (var r in snapshot)
             {
-                var item = new ListViewItem(ToLocal(r.StartedUtc));
+                var item = new ListViewItem(ToLocal(r.StartedUtc)) { Tag = r };
                 item.SubItems.Add(r.JobName ?? "");
                 item.SubItems.Add(AgentsUserControl.FriendlyName(r.AgentHostname, friendly));
                 item.SubItems.Add(r.Outcome ?? (r.Success ? "Success" : "Failed"));

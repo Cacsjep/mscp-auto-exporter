@@ -16,6 +16,9 @@ namespace AutoExporter.Agent
     {
         private readonly ManualResetEventSlim _shutdown = new ManualResetEventSlim(false);
         private readonly ConcurrentQueue<TriggerRequest> _jobs = new ConcurrentQueue<TriggerRequest>();
+        // RunIds the admin asked to stop. A queued run is skipped when dequeued; the running run is
+        // cancelled because its export polls this set. RunIds are unique, so a stale entry is harmless.
+        private readonly ConcurrentDictionary<Guid, byte> _cancelledRuns = new ConcurrentDictionary<Guid, byte>();
         private Thread _mip;
         private MilestoneSession _session;
         private AgentNode _node;
@@ -103,6 +106,7 @@ namespace AutoExporter.Agent
                     // The pong reply carries the node's live registration so the admin Agents view
                     // shows fresh fields (name, max GB, used GB) without a config cache refresh.
                     _session.RegistrationProvider = () => _node?.Snapshot();
+                    _session.OnStopJob = req => { if (req.RunId != Guid.Empty) _cancelledRuns[req.RunId] = 1; };
                     _session.SubscribeRunJob(req => _jobs.Enqueue(req));
 
                     // Now that we are logged in, check that every recording server is reachable
@@ -180,8 +184,11 @@ namespace AutoExporter.Agent
 
         private void RunJobSafe(TriggerRequest req)
         {
-            try { new JobRunner(_session, () => _shutdown.IsSet).Run(req); }
+            // The run stops if the service is shutting down or the admin asked to stop this run. The
+            // JobRunner records it as Stopped (skipped before start, or cancelled mid-export).
+            try { new JobRunner(_session, () => _shutdown.IsSet || _cancelledRuns.ContainsKey(req.RunId)).Run(req); }
             catch (Exception ex) { Log.Error("RunJob failed: " + ex); }
+            finally { _cancelledRuns.TryRemove(req.RunId, out _); }
         }
 
         // Returns true if the heartbeat round-trip to the server succeeded.

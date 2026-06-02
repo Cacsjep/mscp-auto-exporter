@@ -33,15 +33,25 @@ namespace AutoExporter.AdminPlugin
         // Live status of an agent, derived from the ping/pong round-trip.
         private enum LiveState { Checking, Online, Offline }
 
-        // hostname -> last time it answered a ping (UTC). Guarded by _gate.
-        private readonly Dictionary<string, DateTime> _lastPong =
+        // Live ping/pong state is shared process-wide (static) so the Jobs list, the job editor agent
+        // dropdown, and the Executions view see the same fresh data the Agents list does, not just the
+        // Management Client's cached configuration. Guarded by _gate.
+        //   _lastPong : hostname -> last time it answered a ping (UTC).
+        //   _live     : hostname -> the registration the agent sent in its last pong (fresh MaxGB /
+        //               DisplayName / UsedBytes, which the cached config does not have until a refresh).
+        //   _removed  : hostname -> when the admin deleted it. The MC keeps returning a just-deleted
+        //               agent from its cached read until a manual refresh, so we hide it briefly to
+        //               bridge that lag. The tombstone is TIME-LIMITED (TombstoneWindow) and a fresh
+        //               pong clears it at once, so a re-registered or not-really-deleted agent always
+        //               comes back rather than staying hidden forever.
+        private static readonly Dictionary<string, DateTime> _lastPong =
             new Dictionary<string, DateTime>(StringComparer.OrdinalIgnoreCase);
-        // hostname -> the registration the agent sent in its last pong. The Management Client caches
-        // config reads, so MaxGB / DisplayName / UsedBytes edits do not appear until a manual refresh.
-        // The live pong carries those fields, so we prefer it over the cached config item. Guarded by _gate.
-        private readonly Dictionary<string, AgentRegistration> _live =
+        private static readonly Dictionary<string, AgentRegistration> _live =
             new Dictionary<string, AgentRegistration>(StringComparer.OrdinalIgnoreCase);
-        private readonly object _gate = new object();
+        private static readonly Dictionary<string, DateTime> _removed =
+            new Dictionary<string, DateTime>(StringComparer.OrdinalIgnoreCase);
+        private static readonly TimeSpan TombstoneWindow = TimeSpan.FromSeconds(15);
+        private static readonly object _gate = new object();
 
         // hostname -> first time we listed it without a pong (UTC). UI-thread only (set in Reload).
         // Drives the initial "Checking..." grace so a pending first ping does not flash red.
@@ -141,6 +151,7 @@ namespace AutoExporter.AdminPlugin
                     {
                         _lastPong[reg.Hostname] = DateTime.UtcNow;
                         _live[reg.Hostname] = reg;
+                        _removed.Remove(reg.Hostname);   // it answered, so it is genuinely back
                     }
                     if (IsHandleCreated && !IsDisposed) BeginInvoke((Action)Reload);
                 }
@@ -207,16 +218,23 @@ namespace AutoExporter.AdminPlugin
         private List<AgentRegistration> MergedAgents()
         {
             var byHost = new Dictionary<string, AgentRegistration>(StringComparer.OrdinalIgnoreCase);
-            foreach (var c in ReadAgents())
-                if (!string.IsNullOrEmpty(c.Hostname)) byHost[c.Hostname] = c;
+            var config = ReadAgents();
             lock (_gate)
             {
+                foreach (var c in config)
+                    if (!string.IsNullOrEmpty(c.Hostname) && !IsTombstoned(c.Hostname))
+                        byHost[c.Hostname] = c;
                 foreach (var kv in _live)
                     if (_lastPong.TryGetValue(kv.Key, out var t) && DateTime.UtcNow - t <= OnlineWithin)
                         byHost[kv.Key] = kv.Value;
             }
             return byHost.Values.OrderBy(a => a.FriendlyName, StringComparer.OrdinalIgnoreCase).ToList();
         }
+
+        // Whether a just-deleted agent should still be hidden. Caller holds _gate. Time-limited so it
+        // only masks the Management Client's config-cache lag, never permanently hides a live agent.
+        private static bool IsTombstoned(string hostname)
+            => _removed.TryGetValue(hostname, out var t) && DateTime.UtcNow - t <= TombstoneWindow;
 
         // True when the export folder has reached 95% of the configured max size (max GB unset = no cap).
         private static bool NearSizeLimit(AgentRegistration reg)
@@ -315,6 +333,17 @@ namespace AutoExporter.AdminPlugin
                     MessageBox.Show(this, "Could not remove the agent: " + directError,
                         "Remove agent", MessageBoxButtons.OK, MessageBoxIcon.Error);
             }
+
+            // Hide it right away even though the Management Client still has the deleted item cached.
+            // Drop any live state too so the merge does not re-add it; a later pong (the agent really
+            // came back) clears the tombstone again.
+            lock (_gate)
+            {
+                _removed[reg.Hostname] = DateTime.UtcNow;
+                _live.Remove(reg.Hostname);
+                _lastPong.Remove(reg.Hostname);
+            }
+            _firstSeen.Remove(reg.Hostname);
             Reload();
         }
 
@@ -377,14 +406,37 @@ namespace AutoExporter.AdminPlugin
         }
 
         // hostname -> friendly display name (the agent's DisplayName when set, else the hostname).
-        // Built from the registered agents so a configured friendly name shows everywhere an agent is
-        // referenced by hostname (Jobs list, job editor, Executions), not just in the Agents list.
+        // Built from the registered agents and overlaid with the live pong data, so a configured
+        // friendly name shows everywhere an agent is referenced by hostname (Jobs list, job editor,
+        // Executions), not just in the Agents list, without waiting for a config cache refresh.
         internal static Dictionary<string, string> FriendlyNames()
         {
             var map = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
             foreach (var a in ReadAgents())
                 if (!string.IsNullOrEmpty(a.Hostname)) map[a.Hostname] = a.FriendlyName;
+            lock (_gate)
+                foreach (var kv in _live)
+                    map[kv.Key] = kv.Value.FriendlyName;   // live (pong) name is fresher than cached config
             return map;
+        }
+
+        // The agents to offer for selection (job editor dropdown): the registered set plus any agent
+        // currently answering pings, with live pong data preferred and admin-removed hosts hidden. Lets
+        // a newly started agent appear and its friendly name show without a Management Client refresh.
+        internal static List<AgentRegistration> KnownAgents()
+        {
+            var byHost = new Dictionary<string, AgentRegistration>(StringComparer.OrdinalIgnoreCase);
+            var config = ReadAgents();
+            lock (_gate)
+            {
+                foreach (var c in config)
+                    if (!string.IsNullOrEmpty(c.Hostname) && !IsTombstoned(c.Hostname))
+                        byHost[c.Hostname] = c;
+                foreach (var kv in _live)
+                    if (_lastPong.TryGetValue(kv.Key, out var t) && DateTime.UtcNow - t <= OnlineWithin)
+                        byHost[kv.Key] = kv.Value;
+            }
+            return byHost.Values.OrderBy(a => a.FriendlyName, StringComparer.OrdinalIgnoreCase).ToList();
         }
 
         // The friendly name for a hostname, or the hostname itself when it is unknown. Pass a map from

@@ -30,6 +30,7 @@ namespace AutoExporter.AdminPlugin
         };
         private readonly CheckBox _chkEncrypt = new CheckBox { Text = "Encrypt", AutoSize = true };
         private readonly TextBox _txtPassword = new TextBox { UseSystemPasswordChar = true, Width = 180 };
+        private readonly CheckBox _chkTimestamp = new CheckBox { Text = "Burn in timestamp", AutoSize = true };
         private readonly NumericUpDown _numRangeValue = new NumericUpDown { Minimum = 1, Maximum = 100000, Value = 1, Width = 70 };
         private readonly ComboBox _cboRangeUnit = new ComboBox { DropDownStyle = ComboBoxStyle.DropDownList, Width = 100 };
         private readonly ListBox _lstTargets = new ListBox { SelectionMode = SelectionMode.MultiExtended, Height = 120 };
@@ -68,6 +69,7 @@ namespace AutoExporter.AdminPlugin
             _chkEnabled.CheckedChanged += (_, __) => RaiseChanged();
             _cboAgent.SelectedIndexChanged += (_, __) => RaiseChanged();
             _txtPassword.TextChanged += (_, __) => RaiseChanged();
+            _chkTimestamp.CheckedChanged += (_, __) => RaiseChanged();
             _numRangeValue.ValueChanged += (_, __) => RaiseChanged();
             _cboRangeUnit.SelectedIndexChanged += (_, __) => RaiseChanged();
         }
@@ -104,6 +106,7 @@ namespace AutoExporter.AdminPlugin
             AddRow(root, "Format", Flow(_radXProtect, _radAvi));
             AddRow(root, "", _lblFormatHint);
             AddRow(root, "Encryption", Flow(_chkEncrypt, _txtPassword));
+            AddRow(root, "AVI options", _chkTimestamp);
             AddRow(root, "Time range", Flow(new Label { Text = "Last", AutoSize = true, Anchor = AnchorStyles.Left, Padding = new Padding(0, 6, 0, 0) }, _numRangeValue, _cboRangeUnit));
 
             var targetButtons = new FlowLayoutPanel { FlowDirection = FlowDirection.LeftToRight, AutoSize = true };
@@ -179,6 +182,7 @@ namespace AutoExporter.AdminPlugin
                 _radAvi.Checked = job.Format == "AVI";
                 _chkEncrypt.Checked = job.Encrypt;
                 _txtPassword.Text = job.Password;
+                _chkTimestamp.Checked = job.Timestamp;
                 _numRangeValue.Value = Clamp(job.RangeValue, _numRangeValue.Minimum, _numRangeValue.Maximum);
                 _cboRangeUnit.SelectedItem = _cboRangeUnit.Items.Contains(job.RangeUnit) ? job.RangeUnit : "Days";
 
@@ -221,6 +225,7 @@ namespace AutoExporter.AdminPlugin
                 _radAvi.Checked = true;
                 _chkEncrypt.Checked = false;
                 _txtPassword.Text = "";
+                _chkTimestamp.Checked = false;
                 _numRangeValue.Value = 1;
                 _cboRangeUnit.SelectedItem = "Days";
                 _lstTargets.Items.Clear();
@@ -255,6 +260,7 @@ namespace AutoExporter.AdminPlugin
                 Encrypt = _chkEncrypt.Checked,
                 Password = _txtPassword.Text,
                 IncludeAudio = true,   // audio is always exported (the UI option was removed)
+                Timestamp = _chkTimestamp.Checked,
                 RangeValue = (int)_numRangeValue.Value,
                 RangeUnit = _cboRangeUnit.SelectedItem?.ToString() ?? "Days",
             };
@@ -313,6 +319,10 @@ namespace AutoExporter.AdminPlugin
             _chkEncrypt.Enabled = xp;
             _txtPassword.Enabled = xp && _chkEncrypt.Checked;
             if (!xp) _chkEncrypt.Checked = false;
+
+            // Timestamp burn-in is an AVI-only feature.
+            _chkTimestamp.Enabled = !xp;
+            if (xp) _chkTimestamp.Checked = false;
         }
 
         private static decimal Clamp(int value, decimal min, decimal max)

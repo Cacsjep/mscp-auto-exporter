@@ -341,6 +341,7 @@ namespace AutoExporter.Agent
                     exporter.Init();
                     exporter.Path = camDir;
                     exporter.Filename = name + ".avi";
+                    exporter.Timestamp = job.Timestamp;   // burn the recording time into the frames when requested
                     exporter.CameraList.Add(cam);
 
                     if (job.IncludeAudio)
@@ -448,7 +449,7 @@ namespace AutoExporter.Agent
         // to stop. Word the run error to match what actually happened.
         private string StalledOrStoppedMessage()
             => (_shouldStop != null && _shouldStop())
-                ? "export cancelled because the service is stopping"
+                ? "export stopped before it finished"
                 : "export stalled (no progress and no new data), cancelled";
 
         private static void SafeEnd(IExporter exporter)

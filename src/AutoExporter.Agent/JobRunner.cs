@@ -63,6 +63,30 @@ namespace AutoExporter.Agent
 
             Log.Info($"Run job '{job.Name}' trigger={req.TriggerSource} range={rangeStartUtc:O} to {endUtc:O} out='{outputFolder}'");
 
+            // Stopped by the admin while still queued: record it and do not start the export.
+            if (_shouldStop != null && _shouldStop())
+            {
+                Log.Info($"Job '{job.Name}' stopped before it started (run {req.RunId}).");
+                PublishRecord(new ExecutionRecord
+                {
+                    RunId = req.RunId == Guid.Empty ? Guid.NewGuid() : req.RunId,
+                    JobObjectId = req.JobObjectId,
+                    JobName = job.Name,
+                    AgentHostname = System.Environment.MachineName,
+                    StartedUtc = startedUtc,
+                    FinishedUtc = DateTime.UtcNow,
+                    RangeStartUtc = rangeStartUtc,
+                    RangeEndUtc = endUtc,
+                    Format = job.Format,
+                    Trigger = req.TriggerSource,
+                    Success = false,
+                    Outcome = "Stopped",
+                    OutputFolder = outputFolder,
+                    CameraCount = job.Targets.Count,
+                });
+                return;
+            }
+
             // Tell the Event Server bridge to raise the JobStarted MIP event.
             SendEvent(req.JobObjectId, JobEventNotice.KindStarted,
                 $"Trigger: {req.TriggerSource} | Range: {rangeStartUtc.ToLocalTime():g} to {endUtc.ToLocalTime():g}");
@@ -101,10 +125,14 @@ namespace AutoExporter.Agent
             var exporter = new Exporter(OnProgress, _shouldStop);
             var run = exporter.Run(job, outputFolder, rangeStartUtc, endUtc);
 
+            // The export can fail because the admin stopped it mid-run. Record that as Stopped, not
+            // Failed, and do not raise the Job Failed event (a user-initiated stop is not an error).
+            bool stopped = !run.Success && _shouldStop != null && _shouldStop();
+
             // 6. Finalize the same record (same RunId, so it replaces the Running row) and publish.
             rec.FinishedUtc = DateTime.UtcNow;
             rec.Success = run.Success;
-            rec.Outcome = ClassifyOutcome(run.Success, run.CameraCount, run.SkippedCameras?.Count ?? 0);
+            rec.Outcome = stopped ? "Stopped" : ClassifyOutcome(run.Success, run.CameraCount, run.SkippedCameras?.Count ?? 0);
             rec.Error = run.Error;
             rec.CameraCount = run.CameraCount;
             rec.BytesWritten = run.BytesWritten;
@@ -117,6 +145,10 @@ namespace AutoExporter.Agent
                 Log.Info($"Job '{job.Name}' {rec.Outcome}: {run.CameraCount} camera(s), {run.BytesWritten / (1024 * 1024)} MB.");
                 SendEvent(req.JobObjectId, JobEventNotice.KindSucceeded,
                     $"Cameras: {run.CameraCount} | Size: {run.BytesWritten / (1024 * 1024)} MB | Folder: {outputFolder}");
+            }
+            else if (stopped)
+            {
+                Log.Info($"Job '{job.Name}' stopped by request.");
             }
             else
             {

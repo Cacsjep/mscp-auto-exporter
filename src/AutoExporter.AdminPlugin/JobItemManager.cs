@@ -103,7 +103,6 @@ namespace AutoExporter.AdminPlugin
             return j.Enabled ? $"{j.Format} on '{AgentsUserControl.FriendlyName(j.AgentHostname)}'" : "Disabled";
         }
 
-        private static List<AgentRegistration> Agents()
-            => AgentsUserControl.ReadAgents().Where(a => !string.IsNullOrWhiteSpace(a.Hostname)).ToList();
+        private static List<AgentRegistration> Agents() => AgentsUserControl.KnownAgents();
     }
 }

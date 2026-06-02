@@ -25,6 +25,10 @@ namespace AutoExporter.Agent
         private object _queryFilter;
         private object _clearFilter;
         private object _pingFilter;
+        private object _stopFilter;
+
+        /// <summary>Invoked when the admin asks to stop a run (set by AgentHost). Carries the run to cancel.</summary>
+        public Action<TriggerRequest> OnStopJob { get; set; }
 
         // How many recent executions this agent returns to the admin Status view per query.
         private const int ReplyRecordCap = 200;
@@ -151,8 +155,10 @@ namespace AutoExporter.Agent
                 OnClearExecutions, new CommunicationIdFilter(Messages.ClearExecutions));
             _pingFilter = mc.RegisterCommunicationFilter(
                 OnAgentPing, new CommunicationIdFilter(Messages.AgentPing));
+            _stopFilter = mc.RegisterCommunicationFilter(
+                OnStopJobMessage, new CommunicationIdFilter(Messages.StopJob));
 
-            Log.Info("Subscribed to RunJob, QueryExecutions, ClearExecutions and AgentPing messages.");
+            Log.Info("Subscribed to RunJob, StopJob, QueryExecutions, ClearExecutions and AgentPing messages.");
         }
 
         // Supplies the current agent registration for the pong reply (set by AgentHost to the node's
@@ -243,6 +249,26 @@ namespace AutoExporter.Agent
             return null;
         }
 
+        // The admin broadcasts StopJob to cancel a queued or running job. Act only on stops addressed
+        // to this machine, then hand the run id to AgentHost to drop or cancel.
+        private object OnStopJobMessage(Message message, FQID destination, FQID sender)
+        {
+            try
+            {
+                var req = TriggerRequest.Decode(message?.Data as string);
+                if (req == null) return null;
+                if (!string.Equals(req.AgentHostname, System.Environment.MachineName, StringComparison.OrdinalIgnoreCase))
+                    return null;
+                Log.Info($"Stop requested for run {req.RunId} (job {req.JobObjectId}).");
+                OnStopJob?.Invoke(req);
+            }
+            catch (Exception ex)
+            {
+                Log.Error("StopJob message handling failed: " + ex.Message);
+            }
+            return null;
+        }
+
         public void Dispose()
         {
             if (!_initialized) return;
@@ -256,6 +282,7 @@ namespace AutoExporter.Agent
                     if (_queryFilter != null) mc?.UnRegisterCommunicationFilter(_queryFilter);
                     if (_clearFilter != null) mc?.UnRegisterCommunicationFilter(_clearFilter);
                     if (_pingFilter != null) mc?.UnRegisterCommunicationFilter(_pingFilter);
+                    if (_stopFilter != null) mc?.UnRegisterCommunicationFilter(_stopFilter);
                 }
                 catch { }
                 try { MessageCommunicationManager.Stop(_msgServerId); } catch { }

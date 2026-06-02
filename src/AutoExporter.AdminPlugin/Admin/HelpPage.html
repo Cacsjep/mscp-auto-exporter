@@ -58,7 +58,7 @@
 <div class="tip">
   <strong>Export formats and the Smart Client (TM) Player.</strong>
   <ul>
-    <li><strong>AVI</strong> produces a standard video file per camera that plays in any media player. It is the default and needs no Milestone software to view. It does not support encryption.</li>
+    <li><strong>AVI</strong> produces a standard video file per camera that plays in any media player. It is the default and needs no Milestone software to view. It does not support encryption. Tick <strong>Burn in timestamp</strong> to draw the recording time onto the video frames.</li>
     <li><strong>XProtect (TM)</strong> produces the Milestone database export (a Data folder plus a project file) and supports encryption. You open it in a Smart Client (TM) to review it.</li>
     <li>The bundled <strong>Smart Client (TM) Player</strong> (the standalone <code>SmartClient-Player.exe</code> you get from an export made inside the Smart Client) is <strong>not</strong> included. Milestone only adds the player when the export runs from within the Smart Client itself, so a standalone service such as this agent cannot produce it. Use AVI if the recipient has no Milestone software, or open the XProtect (TM) export in a Smart Client (TM).</li>
   </ul>
@@ -105,7 +105,7 @@
 </div>
 
 <h2>Status and logs</h2>
-<p>The <strong>Executions</strong> section shows recent runs from every agent (newest first) with the outcome, camera count, size, and detail. Each agent keeps its own run history and log files under <code>%ProgramData%\MSCPlugins\AutoExporter\</code> on its machine. The tray app can open those logs.</p>
+<p>The <strong>Executions</strong> section shows recent runs from every agent (newest first) with the outcome, camera count, size, and detail. Select a Pending or Running run and click <strong>Stop run</strong> to cancel it: a queued run is dropped before it starts and an in-progress export is cancelled, and the run is recorded as Stopped. Each agent keeps its own run history and log files under <code>%ProgramData%\MSCPlugins\AutoExporter\</code> on its machine. The tray app can open those logs.</p>
 
 <h2>Troubleshooting</h2>
 <ul>

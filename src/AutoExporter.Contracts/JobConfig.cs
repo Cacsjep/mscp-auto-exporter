@@ -29,6 +29,7 @@ namespace AutoExporter.Contracts
         // not offered: the SDK can only bundle the player when the export runs inside the Smart
         // Client itself, so a standalone agent can never produce it. See the plugin help page.
         public bool IncludeAudio = true;
+        public bool Timestamp;                 // AVI only: burn the recording time into the video frames
         public int RangeValue = 1;
         public string RangeUnit = "Days";     // Minutes | Hours | Days | Months
         public List<JobTarget> Targets = new List<JobTarget>();
@@ -42,6 +43,7 @@ namespace AutoExporter.Contracts
             public const string Encrypt = "Encrypt";
             public const string Password = "Password";
             public const string IncludeAudio = "IncludeAudio";
+            public const string Timestamp = "Timestamp";
             public const string RangeValue = "RangeValue";
             public const string RangeUnit = "RangeUnit";
             public const string TargetsCount = "Targets_Count";
@@ -59,6 +61,7 @@ namespace AutoExporter.Contracts
                 [Keys.Encrypt] = Encrypt ? "Yes" : "No",
                 [Keys.Password] = Password ?? "",
                 [Keys.IncludeAudio] = IncludeAudio ? "Yes" : "No",
+                [Keys.Timestamp] = Timestamp ? "Yes" : "No",
                 [Keys.RangeValue] = RangeValue.ToString(CultureInfo.InvariantCulture),
                 [Keys.RangeUnit] = RangeUnit ?? "Days",
                 [Keys.TargetsCount] = Targets.Count.ToString(CultureInfo.InvariantCulture),
@@ -83,6 +86,7 @@ namespace AutoExporter.Contracts
                 Encrypt = IsYes(Get(p, Keys.Encrypt, "No")),
                 Password = Get(p, Keys.Password, ""),
                 IncludeAudio = IsYes(Get(p, Keys.IncludeAudio, "Yes")),
+                Timestamp = IsYes(Get(p, Keys.Timestamp, "No")),
                 RangeValue = GetInt(p, Keys.RangeValue, 1),
                 RangeUnit = Get(p, Keys.RangeUnit, "Days"),
             };

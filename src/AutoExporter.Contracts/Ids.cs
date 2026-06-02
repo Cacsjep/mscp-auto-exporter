@@ -55,6 +55,11 @@ namespace AutoExporter.Contracts
         // Event Server bridge -> agent: run a job now (rule trigger). Data = TriggerRequest.
         public const string RunJob   = "AutoExporter.RunJob";
 
+        // admin -> agent: stop a queued or running job. Data = TriggerRequest (RunId identifies the
+        // run to cancel; AgentHostname targets the agent). The agent drops it if still queued or
+        // cancels the in-progress export if it is the one running.
+        public const string StopJob  = "AutoExporter.StopJob";
+
         // agent -> Event Server bridge: raise a MIP job event. Data = JobEventNotice (encoded).
         public const string JobEvent = "AutoExporter.JobEvent";
 

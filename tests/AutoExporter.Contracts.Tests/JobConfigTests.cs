@@ -18,6 +18,7 @@ namespace AutoExporter.Contracts.Tests
                 Encrypt = true,
                 Password = "pw",
                 IncludeAudio = false,
+                Timestamp = true,
                 RangeValue = 12,
                 RangeUnit = "Hours",
             };
@@ -33,6 +34,7 @@ namespace AutoExporter.Contracts.Tests
             Assert.True(loaded.Encrypt);
             Assert.Equal("pw", loaded.Password);
             Assert.False(loaded.IncludeAudio);
+            Assert.True(loaded.Timestamp);
             Assert.Equal(12, loaded.RangeValue);
             Assert.Equal("Hours", loaded.RangeUnit);
             Assert.Equal(2, loaded.Targets.Count);
