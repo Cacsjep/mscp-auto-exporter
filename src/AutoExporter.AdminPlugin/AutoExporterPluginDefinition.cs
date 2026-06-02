@@ -12,9 +12,10 @@ using VideoOS.Platform.RuleAction;
 namespace AutoExporter.AdminPlugin
 {
     /// <summary>
-    /// Tree: Exporter (this plugin) -> Agents -> Agent &lt;Hostname&gt; -> Jobs -> Job-A/B,
-    /// plus a Status and Executions node. Agent nodes are written by the running agent service
-    /// (self-registration); Job nodes are created here by the admin, scoped under an agent.
+    /// Plugin tree: one Overview node (with Agents, Jobs and Executions sections) and a Jobs node
+    /// so the rule engine can target a specific job. Agents are not tree nodes. Agent items are
+    /// written by the running agent service when it self-registers. Job items are created here by
+    /// the admin.
     /// </summary>
     public class AutoExporterPluginDefinition : PluginDefinition
     {

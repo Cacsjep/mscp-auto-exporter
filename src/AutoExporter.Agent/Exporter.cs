@@ -31,9 +31,13 @@ namespace AutoExporter.Agent
     internal sealed class Exporter
     {
         private readonly Action<int, int, int, string> _onProgress;
+        private readonly Func<bool> _shouldStop;
 
-        public Exporter(Action<int, int, int, string> onProgress = null)
-            => _onProgress = onProgress;
+        public Exporter(Action<int, int, int, string> onProgress = null, Func<bool> shouldStop = null)
+        {
+            _onProgress = onProgress;
+            _shouldStop = shouldStop;
+        }
 
         public ExportRunResult Run(JobConfig job, string outputFolder, DateTime startUtc, DateTime endUtc)
         {
@@ -263,8 +267,14 @@ namespace AutoExporter.Agent
             DBExporter exporter = null;
             try
             {
-                exporter = new DBExporter(job.IncludePlayer)
+                // The constructor bool is the block (.scp) database format, which does NOT carry the
+                // Smart Client - Player. "Include player" is a separate property. Use the standard
+                // export format (false) and set ExportToDisk + IncludePlayer so the standalone
+                // player is bundled when requested.
+                exporter = new DBExporter(false)
                 {
+                    ExportToDisk = true,
+                    IncludePlayer = job.IncludePlayer,
                     Encryption = job.Encrypt,
                     EncryptionStrength = EncryptionStrength.AES128,
                     Password = job.Password ?? "",
@@ -276,6 +286,7 @@ namespace AutoExporter.Agent
 
                 exporter.Init();
                 exporter.Path = outputFolder;
+                exporter.ExportName = MakeSafeFileName(job.Name);
                 exporter.CameraList.AddRange(cameras);
 
                 if (job.IncludeAudio)
@@ -295,7 +306,7 @@ namespace AutoExporter.Agent
 
                 if (!WaitForCompletion(exporter, cameras.FirstOrDefault()?.Name ?? "", 0, cameras.Count, outputFolder))
                 {
-                    error = "Export stalled (no progress and no new data), cancelled";
+                    error = StalledOrStoppedMessage();
                     return false;
                 }
 
@@ -350,7 +361,7 @@ namespace AutoExporter.Agent
 
                     if (!WaitForCompletion(exporter, cam?.Name ?? "", i, cameras.Count, camDir))
                     {
-                        error = $"Camera '{cam?.Name}': export stalled (no progress and no new data), cancelled";
+                        error = $"Camera '{cam?.Name}': " + StalledOrStoppedMessage();
                         return false;
                     }
 
@@ -383,6 +394,15 @@ namespace AutoExporter.Agent
 
             while (true)
             {
+                // Service is stopping: cancel the export cleanly instead of letting the stop block
+                // for up to the stall limit (which would risk the SCM hard-killing us mid-export).
+                if (_shouldStop != null && _shouldStop())
+                {
+                    Log.Info($"Service stopping, cancelling export of '{cameraName}'.");
+                    try { exporter.Cancel(); } catch { }
+                    return false;
+                }
+
                 int p = exporter.Progress;
                 if (p < 0) p = 0;
                 _onProgress?.Invoke(cameraIndex, total, p, cameraName);
@@ -425,6 +445,13 @@ namespace AutoExporter.Agent
             }
             while (unchecked(System.Environment.TickCount - start) < ms);
         }
+
+        // WaitForCompletion returns false both when an export stalls and when the service asked us
+        // to stop. Word the run error to match what actually happened.
+        private string StalledOrStoppedMessage()
+            => (_shouldStop != null && _shouldStop())
+                ? "export cancelled because the service is stopping"
+                : "export stalled (no progress and no new data), cancelled";
 
         private static void SafeEnd(IExporter exporter)
         {

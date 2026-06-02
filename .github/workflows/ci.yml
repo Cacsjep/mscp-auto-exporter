@@ -20,6 +20,15 @@ jobs:
         with:
           dotnet-version: 9.0.x
 
+      # Build the whole solution (Contracts, Agent, AdminPlugin, Tray, Tests) so a compile break in
+      # any project fails CI, not just a test failure. CIBuild=true skips the local dev-deploy
+      # targets (MIPPlugins copy, Event Server restart) that only make sense on a developer machine.
+      # The Milestone SDK packages restore from nuget.org and the net48 targeting pack is present on
+      # windows-latest.
+      - name: Build solution (Release)
+        shell: pwsh
+        run: dotnet build AutoExporter.sln -c Release -p:CIBuild=true --nologo
+
       - name: Run unit tests
         shell: pwsh
-        run: dotnet test tests/AutoExporter.Contracts.Tests/AutoExporter.Contracts.Tests.csproj -c Release --nologo
+        run: dotnet test tests/AutoExporter.Contracts.Tests/AutoExporter.Contracts.Tests.csproj -c Release --no-build --nologo

@@ -1,6 +1,6 @@
 # Auto Exporter
 
-Standalone Milestone XProtect auto-export system. An agent **service** exports video, a **tray app**
+Standalone Milestone XProtect (TM) auto-export system. An agent **service** exports video, a **tray app**
 configures it, and a Management Client **plugin** defines jobs and shows status.
 
 Style: no em dashes or semicolons in prose, docs or comments.
@@ -50,9 +50,13 @@ dotnet test tests\AutoExporter.Contracts.Tests\AutoExporter.Contracts.Tests.cspr
 ```
 
 The installer needs the WiX v5 CLI (`dotnet tool install --global wix`). It produces a per-machine
-MSI: pick the Agent feature (service + tray, with a registration page that pre-writes config) and/or
-the Plugin feature (closes the Management Client and bounces the Event Server). CI runs the tests on
-push, and a `v*` tag builds the MSI and attaches it to the GitHub release.
+MSI: pick the Agent feature (service + tray, with Start menu and Desktop shortcuts, autostart, and a
+launch-on-finish option) and/or the Plugin feature (closes the Management Client and bounces the
+Event Server). The Milestone connection and export settings are configured in the tray after
+install, not during it. On install/upgrade/uninstall the MSI first kills any running tray (so its
+exe is never locked), and a genuine uninstall also removes the runtime data under `%ProgramData%`
+(config, state, logs) while an upgrade keeps it. Exported video is never touched. CI runs the tests
+on push, and a `v*` tag builds the MSI and attaches it to the GitHub release.
 
 ## License
 

@@ -8,6 +8,7 @@
         Width="760" Height="600"
         CanResize="False"
         Background="#0F1115"
+        Icon="/Assets/favicon_blue.ico"
         Title="Auto Exporter Agent"
         WindowStartupLocation="CenterScreen">
 

@@ -117,7 +117,7 @@ namespace AutoExporter.Agent
         private static int ScInstall()
         {
             Sc($"create {ServiceName} binPath= \"{ExePath}\" start= auto DisplayName= \"{DisplayName}\"");
-            Sc($"description {ServiceName} \"Performs Milestone XProtect export jobs on behalf of the Auto Exporter admin plugin.\"");
+            Sc($"description {ServiceName} \"Performs Milestone XProtect (TM) export jobs on behalf of the Auto Exporter admin plugin.\"");
             Sc($"start {ServiceName}");
             return 0;
         }

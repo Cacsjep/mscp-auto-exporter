@@ -70,5 +70,13 @@ namespace AutoExporter.Contracts
         // Management Client cannot write agent kind items itself, so the bridge does it. Data = the
         // agent hostname.
         public const string RemoveAgent = "AutoExporter.RemoveAgent";
+
+        // admin Agents view -> agents: are you alive? Data = empty (broadcast).
+        public const string AgentPing = "AutoExporter.AgentPing";
+
+        // agent -> admin Agents view: yes, I am alive. Data = the agent hostname. Used for the live
+        // Online/Offline status, because the Management Client caches config and its LastSeenUtc
+        // read goes stale.
+        public const string AgentPong = "AutoExporter.AgentPong";
     }
 }

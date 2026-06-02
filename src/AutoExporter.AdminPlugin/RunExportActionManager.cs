@@ -46,7 +46,14 @@ namespace AutoExporter.AdminPlugin
                     continue;
                 }
 
-                BridgeBackgroundPlugin.Instance?.SendRunJob(new TriggerRequest
+                var bridge = BridgeBackgroundPlugin.Instance;
+                if (bridge == null)
+                {
+                    PluginFileLog.Error($"Rule action: the Event Server bridge is not available; job {fqid.ObjectId} was not sent.");
+                    continue;
+                }
+
+                bridge.SendRunJob(new TriggerRequest
                 {
                     JobObjectId = fqid.ObjectId,
                     AgentHostname = host,

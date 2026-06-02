@@ -15,8 +15,13 @@ namespace AutoExporter.Agent
     internal sealed class JobRunner
     {
         private readonly MilestoneSession _session;
+        private readonly Func<bool> _shouldStop;
 
-        public JobRunner(MilestoneSession session) => _session = session;
+        public JobRunner(MilestoneSession session, Func<bool> shouldStop = null)
+        {
+            _session = session;
+            _shouldStop = shouldStop;
+        }
 
         public void Run(TriggerRequest req)
         {
@@ -93,7 +98,7 @@ namespace AutoExporter.Agent
             }
 
             // 5. Run the export.
-            var exporter = new Exporter(OnProgress);
+            var exporter = new Exporter(OnProgress, _shouldStop);
             var run = exporter.Run(job, outputFolder, rangeStartUtc, endUtc);
 
             // 6. Finalize the same record (same RunId, so it replaces the Running row) and publish.

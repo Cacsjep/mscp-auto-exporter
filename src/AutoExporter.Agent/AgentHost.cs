@@ -112,7 +112,23 @@ namespace AutoExporter.Agent
                 catch (Exception ex)
                 {
                     Log.Error("Agent login failed (will retry): " + ex);
-                    WriteState(false, identity, cfg, Humanize(ex, cfg, identity));
+                    var reason = Humanize(ex, cfg, identity);
+
+                    // The SDK often reports a TLS trust problem as a generic ServerNotFound. If the
+                    // server is https, classify the certificate so the operator gets the real reason
+                    // (untrusted root CA, or a name mismatch from connecting by IP) instead.
+                    try
+                    {
+                        var tls = TlsProbe.Classify(_session?.ServerUri);
+                        if (!string.IsNullOrEmpty(tls))
+                        {
+                            Log.Info("TLS probe: " + tls);
+                            if (!tls.StartsWith("TLS OK")) reason = tls;
+                        }
+                    }
+                    catch (Exception probeEx) { Log.Error("TLS probe failed: " + probeEx.Message); }
+
+                    WriteState(false, identity, cfg, reason);
                     TeardownSession(tryMarkOffline: false);
                     if (_shutdown.Wait(RetryDelayMs)) return false;   // wait, then retry
                 }
@@ -161,7 +177,7 @@ namespace AutoExporter.Agent
 
         private void RunJobSafe(TriggerRequest req)
         {
-            try { new JobRunner(_session).Run(req); }
+            try { new JobRunner(_session, () => _shutdown.IsSet).Run(req); }
             catch (Exception ex) { Log.Error("RunJob failed: " + ex); }
         }
 

@@ -24,6 +24,7 @@ namespace AutoExporter.Agent
         private object _runJobFilter;
         private object _queryFilter;
         private object _clearFilter;
+        private object _pingFilter;
 
         // How many recent executions this agent returns to the admin Status view per query.
         private const int ReplyRecordCap = 200;
@@ -55,8 +56,8 @@ namespace AutoExporter.Agent
             _initialized = true;
 
             // Modern (2021R1+) login: build an IDP token cache for the configured credentials and
-            // add the server via AddServerOAuth. This is the path the official MIP SDK samples use;
-            // the legacy AddServer(...) does not perform the IDP basic/windows token grant and the
+            // add the server via AddServerOAuth. This is the path the official MIP SDK samples use.
+            // The legacy AddServer(...) does not perform the IDP basic/windows token grant and the
             // token request fails with 401.
             var tokenCache = BuildTokenCache(idpUri, Config);
             SdkEnvironment.AddServerOAuth(secureOnly, ServerUri, tokenCache, false);
@@ -132,7 +133,7 @@ namespace AutoExporter.Agent
 
         /// <summary>
         /// Register a handler for rule-triggered RunJob messages over MIP MessageCommunication.
-        /// The Event Server bridge broadcasts on the management server's channel; we filter by
+        /// The Event Server bridge broadcasts on the management server's channel. We filter by
         /// message id here and by hostname in <see cref="OnRunJobMessage"/>.
         /// </summary>
         public void SubscribeRunJob(Action<TriggerRequest> handler)
@@ -148,8 +149,19 @@ namespace AutoExporter.Agent
                 OnQueryExecutions, new CommunicationIdFilter(Messages.QueryExecutions));
             _clearFilter = mc.RegisterCommunicationFilter(
                 OnClearExecutions, new CommunicationIdFilter(Messages.ClearExecutions));
+            _pingFilter = mc.RegisterCommunicationFilter(
+                OnAgentPing, new CommunicationIdFilter(Messages.AgentPing));
 
-            Log.Info("Subscribed to RunJob, QueryExecutions and ClearExecutions messages.");
+            Log.Info("Subscribed to RunJob, QueryExecutions, ClearExecutions and AgentPing messages.");
+        }
+
+        // The admin Agents view broadcasts AgentPing; every live agent answers with its hostname so
+        // the view shows real-time Online status (the cached config LastSeenUtc cannot be trusted).
+        private object OnAgentPing(Message message, FQID destination, FQID sender)
+        {
+            try { SendNotice(Messages.AgentPong, System.Environment.MachineName); }
+            catch (Exception ex) { Log.Error("AgentPing handling failed: " + ex.Message); }
+            return null;
         }
 
         // The admin Status view broadcasts QueryExecutions; every agent replies with its own
@@ -232,6 +244,7 @@ namespace AutoExporter.Agent
                     if (_runJobFilter != null) mc?.UnRegisterCommunicationFilter(_runJobFilter);
                     if (_queryFilter != null) mc?.UnRegisterCommunicationFilter(_queryFilter);
                     if (_clearFilter != null) mc?.UnRegisterCommunicationFilter(_clearFilter);
+                    if (_pingFilter != null) mc?.UnRegisterCommunicationFilter(_pingFilter);
                 }
                 catch { }
                 try { MessageCommunicationManager.Stop(_msgServerId); } catch { }

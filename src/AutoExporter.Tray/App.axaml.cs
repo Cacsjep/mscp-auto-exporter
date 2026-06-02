@@ -59,20 +59,26 @@ namespace AutoExporter.Tray
                 return mi;
             }
 
-            _startItem   = Item("Start service",   () => Service(ServiceControl.Start));
-            _stopItem    = Item("Stop service",    () => Service(ServiceControl.Stop));
-            _restartItem = Item("Restart service", () => Service(ServiceControl.Restart));
+            _startItem   = Item("Start",   () => Service(ServiceControl.Start));
+            _stopItem    = Item("Stop",    () => Service(ServiceControl.Stop));
+            _restartItem = Item("Restart", () => Service(ServiceControl.Restart));
+
+            // Group actions into submenus so the menu stays short. A long flat menu opens past the
+            // edge of the screen near the taskbar on Windows 11 and the lower items get clipped.
+            var serviceMenu = new NativeMenu();
+            serviceMenu.Add(_startItem);
+            serviceMenu.Add(_stopItem);
+            serviceMenu.Add(_restartItem);
+
+            var openMenu = new NativeMenu();
+            openMenu.Add(Item("Export folder", () => Shell.OpenFolder(MachineConfig.Load().ExportFolder)));
+            openMenu.Add(Item("Service log", () => LogFiles.Open(LogFiles.ServiceLog)));
+            openMenu.Add(Item("Tray log", () => LogFiles.Open(LogFiles.TrayLog)));
 
             var menu = new NativeMenu();
             menu.Add(Item("Configure…", ShowConfigWindow));
-            menu.Add(new NativeMenuItemSeparator());
-            menu.Add(_startItem);
-            menu.Add(_stopItem);
-            menu.Add(_restartItem);
-            menu.Add(new NativeMenuItemSeparator());
-            menu.Add(Item("Open export folder", () => Shell.OpenFolder(MachineConfig.Load().ExportFolder)));
-            menu.Add(Item("Open service log", () => LogFiles.Open(LogFiles.ServiceLog)));
-            menu.Add(Item("Open tray log", () => LogFiles.Open(LogFiles.TrayLog)));
+            menu.Add(new NativeMenuItem("Service") { Menu = serviceMenu });
+            menu.Add(new NativeMenuItem("Open") { Menu = openMenu });
             menu.Add(new NativeMenuItemSeparator());
             menu.Add(Item("Exit", () => desktop.Shutdown()));
             icon.Menu = menu;

@@ -53,7 +53,7 @@ public static class WindowChromeHelper
                 SWP_NOMOVE | SWP_NOSIZE | SWP_NOZORDER | SWP_NOACTIVATE | SWP_FRAMECHANGED);
             RedrawWindow(hwnd, IntPtr.Zero, IntPtr.Zero,
                 RDW_FRAME | RDW_INVALIDATE | RDW_UPDATENOW | RDW_ALLCHILDREN);
-            // The DWM caption only repaints on activation; synthesize one (invisible to the user).
+            // The DWM caption only repaints on activation. Synthesize one (invisible to the user).
             SendMessage(hwnd, WM_NCACTIVATE, IntPtr.Zero, IntPtr.Zero);
             SendMessage(hwnd, WM_NCACTIVATE, (IntPtr)1,   IntPtr.Zero);
         }

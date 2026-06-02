@@ -15,7 +15,7 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <PackageReference Include="MilestoneSystems.VideoOS.Platform" Version="*-*" />
+    <PackageReference Include="MilestoneSystems.VideoOS.Platform" Version="26.1.2" />
     <PackageReference Include="FontAwesome5" Version="2.1.11" />
   </ItemGroup>
 

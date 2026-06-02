@@ -66,25 +66,39 @@ namespace AutoExporter.Agent
 
             // Probe the reachable-looking targets concurrently so the total time is bounded by the
             // connect timeout, not the number of recorders (a system can have many). Each task
-            // returns its own warning (or null), so there is no shared state to race on.
-            var tasks = targets.Select(t => Task.Run(() =>
-                CanConnect(t.Host, t.Port, out var reason)
+            // returns its own warning (or null), so there is no shared state to race on. The target
+            // is kept beside its task so a faulted or timed-out probe can still be named.
+            var probes = targets.Select(t => new
+            {
+                Target = t,
+                Task = Task.Run(() => CanConnect(t.Host, t.Port, out var reason)
                     ? null
-                    : $"{t.Name} ({t.Host}:{t.Port}) is not reachable: {reason}")).ToArray();
+                    : $"{t.Name} ({t.Host}:{t.Port}) is not reachable: {reason}")
+            }).ToList();
             try
             {
                 // Generous overall cap so a stuck DNS resolver cannot hang the service forever.
-                Task.WaitAll(tasks, ConnectTimeoutMs + 5000);
+                Task.WaitAll(probes.Select(p => p.Task).ToArray(), ConnectTimeoutMs + 5000);
             }
             catch (Exception ex)
             {
                 Log.Error("Recorder probe connect phase failed: " + ex.Message);
             }
 
-            var unreachable = prebaked
-                .Concat(tasks.Where(t => t.Status == TaskStatus.RanToCompletion && t.Result != null)
-                             .Select(t => t.Result))
-                .ToList();
+            var unreachable = new List<string>(prebaked);
+            foreach (var p in probes)
+            {
+                if (p.Task.Status == TaskStatus.RanToCompletion)
+                {
+                    if (p.Task.Result != null) unreachable.Add(p.Task.Result);
+                }
+                else
+                {
+                    // Faulted or still running past the cap: we could not confirm reachability, so
+                    // warn rather than silently treating the recorder as reachable.
+                    unreachable.Add($"{p.Target.Name} ({p.Target.Host}:{p.Target.Port}) could not be verified (the reachability check did not complete).");
+                }
+            }
 
             if (unreachable.Count == 0)
             {

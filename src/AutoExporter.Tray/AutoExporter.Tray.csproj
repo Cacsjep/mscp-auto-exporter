@@ -8,6 +8,8 @@
     <RootNamespace>AutoExporter.Tray</RootNamespace>
     <AssemblyName>AutoExporter.Tray</AssemblyName>
     <ApplicationManifest>app.manifest</ApplicationManifest>
+    <!-- Embed the app icon in the exe so the Start menu and Desktop shortcuts show it. -->
+    <ApplicationIcon>Assets\favicon_blue.ico</ApplicationIcon>
 
     <!-- Single-file self-contained, like Mscp.PkiCertInstaller -->
     <PublishSingleFile>true</PublishSingleFile>

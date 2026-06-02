@@ -22,13 +22,13 @@
 <body>
 
 <h1>Auto Exporter</h1>
-<p>Automate XProtect video exports on a recurring rule or on demand, and keep them on disk within a bounded size and age. Exports are produced by a standalone agent service running on the machine that stores them.</p>
+<p>Automate XProtect (TM) video exports on a recurring rule or on demand, and keep them on disk within a bounded size and age. Exports are produced by a standalone agent service running on the machine that stores them.</p>
 
 <div class="tip">
   <strong>How the pieces fit.</strong>
   <ul>
     <li>An <strong>agent service</strong> runs on each export machine. It signs in to Milestone and does the actual exporting.</li>
-    <li>A <strong>tray app</strong> on that machine sets the Milestone connection, the export folder, the size and age limits, and the log level.</li>
+    <li>A <strong>tray app</strong> on that machine sets the Milestone connection, the export folder, and the size and age limits.</li>
     <li>This <strong>plugin</strong> (here in the Management Client) defines the jobs, assigns each job to an agent, and shows status. It does not export anything itself.</li>
   </ul>
 </div>
@@ -104,6 +104,9 @@
   <li><strong>AVI plus encryption was rejected when saving.</strong> AVI does not support encryption. Switch to XProtect or turn encryption off.</li>
   <li><strong>A recording server is reported unreachable.</strong> Check name resolution and the firewall from the agent machine to that recorder.</li>
 </ul>
+
+<hr style="margin-top:24px; border:none; border-top:1px solid #ddd" />
+<p style="color:#888; font-size:11px">Independent open source project, not affiliated with Milestone Systems. XProtect (TM) is a trademark of Milestone Systems A/S.</p>
 
 </body>
 </html>

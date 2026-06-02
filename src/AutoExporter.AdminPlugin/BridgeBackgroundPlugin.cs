@@ -59,7 +59,7 @@ namespace AutoExporter.AdminPlugin
             _mc = null;
         }
 
-        /// <summary>Broadcast a RunJob trigger; the agent whose hostname matches runs it.</summary>
+        /// <summary>Broadcast a RunJob trigger. The agent whose hostname matches runs it.</summary>
         public void SendRunJob(TriggerRequest req)
         {
             if (req.RunId == Guid.Empty) req.RunId = Guid.NewGuid();

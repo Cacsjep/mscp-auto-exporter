@@ -22,7 +22,8 @@ namespace AutoExporter.Contracts
         public string Password = "";        // plaintext in-memory; encrypted at rest
         public string ExportFolder = "";
 
-        // Agent log verbosity: Error | Info | Debug (default Info).
+        // Retained for config-file compatibility only. Logging is always verbose now (size-rotated),
+        // so the agent does not read this and the tray no longer exposes it.
         public string LogLevel = "Info";
 
         // Agent-wide ring-storage limits for the export folder (0 = unlimited), same semantics
@@ -59,28 +60,38 @@ namespace AutoExporter.Contracts
         {
             path = path ?? DefaultPath;
             var cfg = new MachineConfig();
-            if (!File.Exists(path)) return cfg;
-
-            foreach (var line in File.ReadAllLines(path))
+            try
             {
-                int eq = line.IndexOf('=');
-                if (eq <= 0) continue;
-                var key = line.Substring(0, eq);
-                var val = line.Substring(eq + 1);
-                switch (key)
+                if (!File.Exists(path)) return cfg;
+
+                foreach (var line in File.ReadAllLines(path))
                 {
-                    case "ServerUrl": cfg.ServerUrl = Unescape(val); break;
-                    case "AuthMode":
-                        cfg.AuthMode = Enum.TryParse<AuthMode>(val, out var m) ? m : AuthMode.Basic;
-                        break;
-                    case "Username": cfg.Username = Unescape(val); break;
-                    case "Password": cfg.Password = Unprotect(val); break;
-                    case "ExportFolder": cfg.ExportFolder = Unescape(val); break;
-                    case "LogLevel": cfg.LogLevel = string.IsNullOrWhiteSpace(val) ? "Info" : Unescape(val); break;
-                    case "MaxGB": cfg.MaxGB = ParseInt(val); break;
-                    case "RetentionDays": cfg.RetentionDays = ParseInt(val); break;
-                    case "Registered": cfg.Registered = string.Equals(val.Trim(), "true", StringComparison.OrdinalIgnoreCase); break;
+                    int eq = line.IndexOf('=');
+                    if (eq <= 0) continue;
+                    var key = line.Substring(0, eq);
+                    var val = line.Substring(eq + 1);
+                    switch (key)
+                    {
+                        case "ServerUrl": cfg.ServerUrl = Unescape(val); break;
+                        case "AuthMode":
+                            cfg.AuthMode = Enum.TryParse<AuthMode>(val, out var m) ? m : AuthMode.Basic;
+                            break;
+                        case "Username": cfg.Username = Unescape(val); break;
+                        case "Password": cfg.Password = Unprotect(val); break;
+                        case "ExportFolder": cfg.ExportFolder = Unescape(val); break;
+                        case "LogLevel": cfg.LogLevel = string.IsNullOrWhiteSpace(val) ? "Info" : Unescape(val); break;
+                        case "MaxGB": cfg.MaxGB = ParseInt(val); break;
+                        case "RetentionDays": cfg.RetentionDays = ParseInt(val); break;
+                        case "Registered": cfg.Registered = string.Equals(val.Trim(), "true", StringComparison.OrdinalIgnoreCase); break;
+                    }
                 }
+            }
+            catch
+            {
+                // A transiently locked or unreadable config file must not throw. The agent calls
+                // Load on its connect/reconnect loop, and an escaping exception there would stop the
+                // loop and leave the service parked. Returning defaults makes the agent report
+                // "not configured" and retry, which self-heals once the file is readable again.
             }
             return cfg;
         }

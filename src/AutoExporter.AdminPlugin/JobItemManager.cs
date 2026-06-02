@@ -11,7 +11,7 @@ namespace AutoExporter.AdminPlugin
     /// <summary>
     /// Jobs as a Milestone tree node so the rule engine can target a specific job (rule action +
     /// JobStarted/Succeeded/Failed events use kind <see cref="Ids.JobKindId"/>). Jobs can also be
-    /// managed from the Auto Exporter > Jobs tab; both read/write the same configuration items.
+    /// managed from the Auto Exporter > Jobs tab. Both read and write the same configuration items.
     /// </summary>
     public class JobItemManager : ItemManager
     {

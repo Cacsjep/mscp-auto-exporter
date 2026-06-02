@@ -18,10 +18,21 @@ namespace AutoExporter.AdminPlugin
     /// </summary>
     internal sealed class AgentsUserControl : UserControl
     {
-        // An agent is considered offline once it has missed several heartbeats (the agent beats
-        // every 30s) or has explicitly marked itself Offline on shutdown.
-        private static readonly TimeSpan OfflineAfter = TimeSpan.FromSeconds(90);
+        // Online status comes from a live ping over messaging, not the config LastSeenUtc (the
+        // Management Client caches config, so that read goes stale and an online agent shows
+        // Offline until a manual refresh). An agent counts as Online if it answered a ping recently.
+        private static readonly TimeSpan OnlineWithin = TimeSpan.FromSeconds(12);
         private const int RefreshIntervalMs = 3000;
+
+        // hostname -> last time it answered a ping (UTC). Guarded by _gate.
+        private readonly Dictionary<string, DateTime> _lastPong =
+            new Dictionary<string, DateTime>(StringComparer.OrdinalIgnoreCase);
+        private readonly object _gate = new object();
+
+        private ServerId _serverId;
+        private MessageCommunication _mc;
+        private object _pongFilter;
+        private bool _started;
 
         private readonly ListView _list = new ListView
         {
@@ -57,9 +68,69 @@ namespace AutoExporter.AdminPlugin
             Controls.Add(_list);
             Controls.Add(top);
 
-            _timer.Tick += (_, __) => Reload();
-            HandleCreated += (_, __) => { Reload(); _timer.Start(); };
-            HandleDestroyed += (_, __) => _timer.Stop();
+            _timer.Tick += (_, __) => { Ping(); Reload(); };
+            HandleCreated += (_, __) => { StartMessaging(); Reload(); _timer.Start(); };
+            HandleDestroyed += (_, __) => { _timer.Stop(); StopMessaging(); };
+        }
+
+        // ----- Live ping messaging -----
+
+        private void StartMessaging()
+        {
+            if (_started) return;
+            try
+            {
+                _serverId = EnvironmentManager.Instance.MasterSite.ServerId;
+                MessageCommunicationManager.Start(_serverId);
+                _mc = MessageCommunicationManager.Get(_serverId);
+                _pongFilter = _mc.RegisterCommunicationFilter(
+                    OnAgentPong, new CommunicationIdFilter(Messages.AgentPong));
+                _started = true;
+                Ping();   // ask right away so status settles within a second
+            }
+            catch (Exception ex)
+            {
+                PluginFileLog.Error("Agents messaging start failed: " + ex.Message);
+            }
+        }
+
+        private void StopMessaging()
+        {
+            try { if (_pongFilter != null) _mc?.UnRegisterCommunicationFilter(_pongFilter); } catch { }
+            try { if (_serverId != null) MessageCommunicationManager.Stop(_serverId); } catch { }
+            _pongFilter = null;
+            _mc = null;
+            _started = false;
+        }
+
+        private void Ping()
+        {
+            try { _mc?.TransmitMessage(new MipMessage(Messages.AgentPing, ""), null, null, null); }
+            catch (Exception ex) { PluginFileLog.Error("AgentPing send failed: " + ex.Message); }
+        }
+
+        // Pong arrives on a MIP background thread. Record the time and refresh on the UI thread.
+        private object OnAgentPong(MipMessage message, FQID destination, FQID sender)
+        {
+            try
+            {
+                var host = message?.Data as string;
+                if (!string.IsNullOrEmpty(host))
+                {
+                    lock (_gate) _lastPong[host] = DateTime.UtcNow;
+                    if (IsHandleCreated && !IsDisposed) BeginInvoke((Action)Reload);
+                }
+            }
+            catch { }
+            return null;
+        }
+
+        // Online when the agent answered a ping within the window.
+        private bool IsOnline(string hostname)
+        {
+            if (string.IsNullOrEmpty(hostname)) return false;
+            lock (_gate)
+                return _lastPong.TryGetValue(hostname, out var t) && DateTime.UtcNow - t <= OnlineWithin;
         }
 
         public void Reload()
@@ -73,16 +144,16 @@ namespace AutoExporter.AdminPlugin
             _list.Items.Clear();
             foreach (var reg in ReadAgents())
             {
-                bool offline = IsOffline(reg);
+                bool online = IsOnline(reg.Hostname);
                 var item = new ListViewItem(reg.FriendlyName) { Tag = reg };
                 item.SubItems.Add(reg.Hostname);
-                item.SubItems.Add(offline ? "Offline" : "Online");
+                item.SubItems.Add(online ? "Online" : "Offline");
                 item.SubItems.Add(string.IsNullOrEmpty(reg.Version) ? "-" : reg.Version);
                 item.SubItems.Add(reg.MaxGB > 0 ? reg.MaxGB.ToString() : "Unlimited");
                 item.SubItems.Add(reg.RetentionDays > 0 ? reg.RetentionDays.ToString() : "Unlimited");
-                item.SubItems.Add(reg.LastSeenUtc == DateTime.MinValue ? "(never)" : reg.LastSeenUtc.ToLocalTime().ToString("yyyy-MM-dd HH:mm:ss"));
+                item.SubItems.Add(LastSeenText(reg));
                 item.SubItems.Add(reg.ExportFolder ?? "");
-                item.ForeColor = offline ? Color.Firebrick : Color.ForestGreen;
+                item.ForeColor = online ? Color.ForestGreen : Color.Firebrick;
                 if (reg.Hostname == selectedHost) item.Selected = true;
                 _list.Items.Add(item);
             }
@@ -90,12 +161,13 @@ namespace AutoExporter.AdminPlugin
             UpdateButtons();
         }
 
-        // Offline when the agent said so, or when no heartbeat has arrived for a while.
-        private static bool IsOffline(AgentRegistration reg)
+        // Prefer the live ping time (the config LastSeenUtc read is cached and goes stale).
+        private string LastSeenText(AgentRegistration reg)
         {
-            if (string.Equals(reg.Status, "Offline", StringComparison.OrdinalIgnoreCase)) return true;
-            if (reg.LastSeenUtc == DateTime.MinValue) return true;
-            return DateTime.UtcNow - reg.LastSeenUtc > OfflineAfter;
+            DateTime seen = reg.LastSeenUtc;
+            lock (_gate)
+                if (_lastPong.TryGetValue(reg.Hostname ?? "", out var t) && t > seen) seen = t;
+            return seen == DateTime.MinValue ? "(never)" : seen.ToLocalTime().ToString("yyyy-MM-dd HH:mm:ss");
         }
 
         // Removal is only offered for an offline agent. A live agent would just re-register itself.
@@ -103,13 +175,13 @@ namespace AutoExporter.AdminPlugin
         {
             _remove.Enabled = _list.SelectedItems.Count > 0
                               && _list.SelectedItems[0].Tag is AgentRegistration reg
-                              && IsOffline(reg);
+                              && !IsOnline(reg.Hostname);
         }
 
         private void RemoveSelected()
         {
             if (_list.SelectedItems.Count == 0 || !(_list.SelectedItems[0].Tag is AgentRegistration reg)) return;
-            if (!IsOffline(reg)) return;
+            if (IsOnline(reg.Hostname)) return;
 
             var jobs = JobsForAgent(reg.Hostname);
             var prompt = jobs.Count == 0
@@ -216,7 +288,7 @@ namespace AutoExporter.AdminPlugin
 
         protected override void Dispose(bool disposing)
         {
-            if (disposing) { _timer.Stop(); _timer.Dispose(); }
+            if (disposing) { _timer.Stop(); _timer.Dispose(); StopMessaging(); }
             base.Dispose(disposing);
         }
     }
