@@ -36,6 +36,11 @@ namespace AutoExporter.AdminPlugin
         // hostname -> last time it answered a ping (UTC). Guarded by _gate.
         private readonly Dictionary<string, DateTime> _lastPong =
             new Dictionary<string, DateTime>(StringComparer.OrdinalIgnoreCase);
+        // hostname -> the registration the agent sent in its last pong. The Management Client caches
+        // config reads, so MaxGB / DisplayName / UsedBytes edits do not appear until a manual refresh.
+        // The live pong carries those fields, so we prefer it over the cached config item. Guarded by _gate.
+        private readonly Dictionary<string, AgentRegistration> _live =
+            new Dictionary<string, AgentRegistration>(StringComparer.OrdinalIgnoreCase);
         private readonly object _gate = new object();
 
         // hostname -> first time we listed it without a pong (UTC). UI-thread only (set in Reload).
@@ -129,10 +134,14 @@ namespace AutoExporter.AdminPlugin
         {
             try
             {
-                var host = message?.Data as string;
-                if (!string.IsNullOrEmpty(host))
+                var reg = AgentRegistration.Decode(message?.Data as string);
+                if (reg != null && !string.IsNullOrEmpty(reg.Hostname))
                 {
-                    lock (_gate) _lastPong[host] = DateTime.UtcNow;
+                    lock (_gate)
+                    {
+                        _lastPong[reg.Hostname] = DateTime.UtcNow;
+                        _live[reg.Hostname] = reg;
+                    }
                     if (IsHandleCreated && !IsDisposed) BeginInvoke((Action)Reload);
                 }
             }
@@ -162,7 +171,7 @@ namespace AutoExporter.AdminPlugin
 
             _list.BeginUpdate();
             _list.Items.Clear();
-            foreach (var reg in ReadAgents())
+            foreach (var reg in MergedAgents())
             {
                 // Stamp the first time we see an agent with no pong yet, so the grace window is
                 // measured from when it appeared (covers both initial open and a later-starting agent).
@@ -170,7 +179,7 @@ namespace AutoExporter.AdminPlugin
                     _firstSeen[reg.Hostname] = DateTime.UtcNow;
 
                 var state = StateFor(reg.Hostname);
-                var item = new ListViewItem(reg.FriendlyName) { Tag = reg };
+                var item = new ListViewItem(reg.FriendlyName) { Tag = reg, UseItemStyleForSubItems = false };
                 item.SubItems.Add(reg.Hostname);
                 item.SubItems.Add(StatusText(state));
                 item.SubItems.Add(string.IsNullOrEmpty(reg.Version) ? "-" : reg.Version);
@@ -179,13 +188,39 @@ namespace AutoExporter.AdminPlugin
                 item.SubItems.Add(reg.RetentionDays > 0 ? reg.RetentionDays.ToString() : "Unlimited");
                 item.SubItems.Add(LastSeenText(reg));
                 item.SubItems.Add(reg.ExportFolder ?? "");
-                item.ForeColor = StatusColor(state);
+
+                // Color only the Status cell (not the whole row). Warn on the Used GB cell when the
+                // export folder is at or above 95% of the agent's max size limit.
+                item.SubItems[2].ForeColor = StatusColor(state);
+                if (NearSizeLimit(reg)) item.SubItems[5].ForeColor = Color.DarkOrange;
+
                 if (reg.Hostname == selectedHost) item.Selected = true;
                 _list.Items.Add(item);
             }
             _list.EndUpdate();
             UpdateButtons();
         }
+
+        // The agents to show: the configured set (authoritative for which agents exist and for
+        // removal), with each currently-online agent's row replaced by the live registration from its
+        // last pong so name / max GB / used GB are current without a Management Client config refresh.
+        private List<AgentRegistration> MergedAgents()
+        {
+            var byHost = new Dictionary<string, AgentRegistration>(StringComparer.OrdinalIgnoreCase);
+            foreach (var c in ReadAgents())
+                if (!string.IsNullOrEmpty(c.Hostname)) byHost[c.Hostname] = c;
+            lock (_gate)
+            {
+                foreach (var kv in _live)
+                    if (_lastPong.TryGetValue(kv.Key, out var t) && DateTime.UtcNow - t <= OnlineWithin)
+                        byHost[kv.Key] = kv.Value;
+            }
+            return byHost.Values.OrderBy(a => a.FriendlyName, StringComparer.OrdinalIgnoreCase).ToList();
+        }
+
+        // True when the export folder has reached 95% of the configured max size (max GB unset = no cap).
+        private static bool NearSizeLimit(AgentRegistration reg)
+            => reg.MaxGB > 0 && reg.UsedBytes >= 0.95 * reg.MaxGB * 1024.0 * 1024.0 * 1024.0;
 
         // Export folder usage as GB. Shows a small but non-zero store as "<0.1" rather than "0" so
         // the operator can tell "nothing exported yet" from "a little exported".

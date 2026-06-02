@@ -155,11 +155,22 @@ namespace AutoExporter.Agent
             Log.Info("Subscribed to RunJob, QueryExecutions, ClearExecutions and AgentPing messages.");
         }
 
-        // The admin Agents view broadcasts AgentPing; every live agent answers with its hostname so
-        // the view shows real-time Online status (the cached config LastSeenUtc cannot be trusted).
+        // Supplies the current agent registration for the pong reply (set by AgentHost to the node's
+        // live snapshot). The pong carries the full registration, not just the hostname, so the admin
+        // Agents view reflects runtime changes (display name, max GB, used GB) without a config refresh.
+        public Func<AgentRegistration> RegistrationProvider { get; set; }
+
+        // The admin Agents view broadcasts AgentPing; every live agent answers with its current
+        // registration so the view shows real-time status and fields (the cached config cannot be
+        // trusted: its LastSeenUtc goes stale and field edits only appear after a manual refresh).
         private object OnAgentPing(Message message, FQID destination, FQID sender)
         {
-            try { SendNotice(Messages.AgentPong, System.Environment.MachineName); }
+            try
+            {
+                var reg = RegistrationProvider?.Invoke()
+                          ?? new AgentRegistration { Hostname = System.Environment.MachineName, Status = "Online" };
+                SendNotice(Messages.AgentPong, reg.Encode());
+            }
             catch (Exception ex) { Log.Error("AgentPing handling failed: " + ex.Message); }
             return null;
         }

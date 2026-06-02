@@ -85,5 +85,37 @@ namespace AutoExporter.Contracts
 
         /// <summary>Hostname unless a friendly display name was set.</summary>
         public string FriendlyName => string.IsNullOrWhiteSpace(DisplayName) ? Hostname : DisplayName;
+
+        /// <summary>
+        /// Serialize for the live AgentPong reply (newline-joined key=value, same fields as the
+        /// stored config item). The admin Agents view prefers this over the cached config item, so
+        /// runtime changes (display name, max GB, used GB) show within a ping cycle instead of only
+        /// after a Management Client refresh.
+        /// </summary>
+        public string Encode()
+        {
+            var lines = new List<string>();
+            foreach (var kv in ToProperties())
+                lines.Add(kv.Key + "=" + Escape(kv.Value));
+            return string.Join("\n", lines);
+        }
+
+        public static AgentRegistration Decode(string s)
+        {
+            var dict = new Dictionary<string, string>();
+            if (!string.IsNullOrEmpty(s))
+            {
+                foreach (var line in s.Split('\n'))
+                {
+                    int eq = line.IndexOf('=');
+                    if (eq <= 0) continue;
+                    dict[line.Substring(0, eq)] = Unescape(line.Substring(eq + 1));
+                }
+            }
+            return FromProperties(dict);
+        }
+
+        static string Escape(string v) => (v ?? "").Replace("\\", "\\\\").Replace("\n", "\\n").Replace("\r", "");
+        static string Unescape(string v) => (v ?? "").Replace("\\n", "\n").Replace("\\\\", "\\");
     }
 }

@@ -92,6 +92,21 @@ namespace AutoExporter.Agent
             Log.Info("Agent node marked Offline.");
         }
 
+        // A copy of the current registration for the live AgentPong reply, so the admin Agents view
+        // shows fresh display name / max GB / used GB without waiting for a config cache refresh.
+        public AgentRegistration Snapshot() => new AgentRegistration
+        {
+            Hostname = _reg.Hostname,
+            Version = _reg.Version,
+            Status = _reg.Status,
+            LastSeenUtc = _reg.LastSeenUtc,
+            ExportFolder = _session.Config.ExportFolder,
+            MaxGB = _session.Config.MaxGB,
+            RetentionDays = _session.Config.RetentionDays,
+            UsedBytes = _reg.UsedBytes,
+            DisplayName = _session.Config.DisplayName,
+        };
+
         /// <summary>Create or update the agent configuration item with current registration state.</summary>
         private void Upsert(string status)
         {

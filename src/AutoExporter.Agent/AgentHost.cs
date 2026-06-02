@@ -100,6 +100,9 @@ namespace AutoExporter.Agent
                     _node = new AgentNode(_session);
                     _node.Register();
 
+                    // The pong reply carries the node's live registration so the admin Agents view
+                    // shows fresh fields (name, max GB, used GB) without a config cache refresh.
+                    _session.RegistrationProvider = () => _node?.Snapshot();
                     _session.SubscribeRunJob(req => _jobs.Enqueue(req));
 
                     // Now that we are logged in, check that every recording server is reachable

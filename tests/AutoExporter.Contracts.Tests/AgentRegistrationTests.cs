@@ -35,6 +35,31 @@ namespace AutoExporter.Contracts.Tests
         }
 
         [Fact]
+        public void Encode_RoundTrips_OverThePongWire()
+        {
+            var reg = new AgentRegistration
+            {
+                Hostname = "ACS01",
+                Version = "3.4.0",
+                Status = "Online",
+                ExportFolder = @"C:\Exports\Auto",
+                MaxGB = 50,
+                RetentionDays = 14,
+                UsedBytes = 12345678901,
+                DisplayName = "Lobby = main",   // exercise an '=' inside a value
+            };
+
+            var loaded = AgentRegistration.Decode(reg.Encode());
+            Assert.Equal("ACS01", loaded.Hostname);
+            Assert.Equal("3.4.0", loaded.Version);
+            Assert.Equal(@"C:\Exports\Auto", loaded.ExportFolder);
+            Assert.Equal(50, loaded.MaxGB);
+            Assert.Equal(14, loaded.RetentionDays);
+            Assert.Equal(12345678901, loaded.UsedBytes);
+            Assert.Equal("Lobby = main", loaded.DisplayName);
+        }
+
+        [Fact]
         public void ObjectIdFor_IsDeterministic_AndCaseInsensitive()
         {
             Assert.Equal(AgentRegistration.ObjectIdFor("ACS01"), AgentRegistration.ObjectIdFor("ACS01"));
