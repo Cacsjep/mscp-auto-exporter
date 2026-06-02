@@ -20,17 +20,24 @@ namespace AutoExporter.AdminPlugin
         private readonly ComboBox _cboAgent = new ComboBox { DropDownStyle = ComboBoxStyle.DropDownList, Width = 320 };
         private readonly RadioButton _radXProtect = new RadioButton { Text = "XProtect™ format", AutoSize = true };
         private readonly RadioButton _radAvi = new RadioButton { Text = "AVI", Checked = true, AutoSize = true };
+        private readonly RadioButton _radTimelapse = new RadioButton { Text = "Timelapse (MP4)", AutoSize = true };
         private readonly Label _lblFormatHint = new Label
         {
             AutoSize = true,
             MaximumSize = new System.Drawing.Size(360, 0),
             ForeColor = System.Drawing.SystemColors.GrayText,
             Text = "XProtect™ format opens only in a Smart Client ™ (the standalone player " +
-                   "cannot be bundled here). Use AVI for a file that plays anywhere.",
+                   "cannot be bundled here). AVI plays anywhere. Timelapse makes a short MP4 by " +
+                   "sampling one frame every few seconds of footage.",
         };
         private readonly CheckBox _chkEncrypt = new CheckBox { Text = "Encrypt", AutoSize = true };
         private readonly TextBox _txtPassword = new TextBox { UseSystemPasswordChar = true, Width = 180 };
         private readonly CheckBox _chkTimestamp = new CheckBox { Text = "Burn in timestamp", AutoSize = true };
+        private readonly NumericUpDown _numTlInterval = new NumericUpDown { Minimum = 1, Maximum = 86400, Value = 60, Width = 70 };
+        private readonly ComboBox _cboTlFps = new ComboBox { DropDownStyle = ComboBoxStyle.DropDownList, Width = 60 };
+        private readonly CheckBox _chkTlDaily = new CheckBox { Text = "Limit to daily window", AutoSize = true };
+        private readonly TextBox _txtTlDailyStart = new TextBox { Width = 60, Text = "08:00" };
+        private readonly TextBox _txtTlDailyEnd = new TextBox { Width = 60, Text = "17:00" };
         private readonly NumericUpDown _numRangeValue = new NumericUpDown { Minimum = 1, Maximum = 100000, Value = 1, Width = 70 };
         private readonly ComboBox _cboRangeUnit = new ComboBox { DropDownStyle = ComboBoxStyle.DropDownList, Width = 100 };
         private readonly ListBox _lstTargets = new ListBox { SelectionMode = SelectionMode.MultiExtended, Height = 120 };
@@ -53,6 +60,8 @@ namespace AutoExporter.AdminPlugin
         {
             _cboRangeUnit.Items.AddRange(new object[] { "Minutes", "Hours", "Days", "Months" });
             _cboRangeUnit.SelectedItem = "Days";
+            _cboTlFps.Items.AddRange(new object[] { 5, 10, 15, 24, 30 });
+            _cboTlFps.SelectedItem = 24;
             BuildLayout();
             WireDirtyTracking();
         }
@@ -63,7 +72,9 @@ namespace AutoExporter.AdminPlugin
         {
             _radXProtect.CheckedChanged += (_, __) => { UpdateFormatUi(); RaiseChanged(); };
             _radAvi.CheckedChanged += (_, __) => { UpdateFormatUi(); RaiseChanged(); };
+            _radTimelapse.CheckedChanged += (_, __) => { UpdateFormatUi(); RaiseChanged(); };
             _chkEncrypt.CheckedChanged += (_, __) => { UpdateFormatUi(); RaiseChanged(); };
+            _chkTlDaily.CheckedChanged += (_, __) => { UpdateFormatUi(); RaiseChanged(); };
 
             _txtName.TextChanged += (_, __) => RaiseChanged();
             _chkEnabled.CheckedChanged += (_, __) => RaiseChanged();
@@ -72,6 +83,10 @@ namespace AutoExporter.AdminPlugin
             _chkTimestamp.CheckedChanged += (_, __) => RaiseChanged();
             _numRangeValue.ValueChanged += (_, __) => RaiseChanged();
             _cboRangeUnit.SelectedIndexChanged += (_, __) => RaiseChanged();
+            _numTlInterval.ValueChanged += (_, __) => RaiseChanged();
+            _cboTlFps.SelectedIndexChanged += (_, __) => RaiseChanged();
+            _txtTlDailyStart.TextChanged += (_, __) => RaiseChanged();
+            _txtTlDailyEnd.TextChanged += (_, __) => RaiseChanged();
         }
 
         private void RaiseChanged()
@@ -103,11 +118,13 @@ namespace AutoExporter.AdminPlugin
             AddRow(root, "Name", _txtName);
             AddRow(root, "", _chkEnabled);
             AddRow(root, "Agent", _cboAgent);
-            AddRow(root, "Format", Flow(_radXProtect, _radAvi));
+            AddRow(root, "Format", Flow(_radXProtect, _radAvi, _radTimelapse));
             AddRow(root, "", _lblFormatHint);
             AddRow(root, "Encryption", Flow(_chkEncrypt, _txtPassword));
-            AddRow(root, "AVI options", Flow(_chkTimestamp));
-            AddRow(root, "Time range", Flow(new Label { Text = "Last", AutoSize = true, Anchor = AnchorStyles.Left, Padding = new Padding(0, 6, 0, 0) }, _numRangeValue, _cboRangeUnit));
+            AddRow(root, "Timestamp", Flow(_chkTimestamp));
+            AddRow(root, "Timelapse", Flow(Lbl("Frame every"), _numTlInterval, Lbl("sec of footage, at"), _cboTlFps, Lbl("fps")));
+            AddRow(root, "", Flow(_chkTlDaily, _txtTlDailyStart, Lbl("to"), _txtTlDailyEnd));
+            AddRow(root, "Time range", Flow(Lbl("Last"), _numRangeValue, _cboRangeUnit));
 
             var targetButtons = new FlowLayoutPanel { FlowDirection = FlowDirection.LeftToRight, AutoSize = true };
             var btnAdd = new Button { Text = "Add cameras..." };
@@ -132,6 +149,10 @@ namespace AutoExporter.AdminPlugin
             foreach (var c in controls) flow.Controls.Add(c);
             return flow;
         }
+
+        // An inline caption sitting beside controls in a Flow row, padded to line up with them.
+        private static Label Lbl(string text)
+            => new Label { Text = text, AutoSize = true, Anchor = AnchorStyles.Left, Padding = new Padding(0, 6, 0, 0) };
 
         private static void AddRow(TableLayoutPanel root, string label, Control control)
         {
@@ -178,13 +199,19 @@ namespace AutoExporter.AdminPlugin
                 _txtName.Text = job.Name;
                 _chkEnabled.Checked = job.Enabled;
                 SelectAgent(job.AgentHostname);
-                _radXProtect.Checked = job.Format != "AVI";
                 _radAvi.Checked = job.Format == "AVI";
+                _radTimelapse.Checked = job.Format == "Timelapse";
+                _radXProtect.Checked = !_radAvi.Checked && !_radTimelapse.Checked;
                 _chkEncrypt.Checked = job.Encrypt;
                 _txtPassword.Text = job.Password;
                 _chkTimestamp.Checked = job.Timestamp;
                 _numRangeValue.Value = Clamp(job.RangeValue, _numRangeValue.Minimum, _numRangeValue.Maximum);
                 _cboRangeUnit.SelectedItem = _cboRangeUnit.Items.Contains(job.RangeUnit) ? job.RangeUnit : "Days";
+                _numTlInterval.Value = Clamp(job.TimelapseIntervalSeconds, _numTlInterval.Minimum, _numTlInterval.Maximum);
+                SelectFps(job.TimelapseFps);
+                _chkTlDaily.Checked = job.TimelapseDailyEnabled;
+                _txtTlDailyStart.Text = string.IsNullOrWhiteSpace(job.TimelapseDailyStart) ? "08:00" : job.TimelapseDailyStart;
+                _txtTlDailyEnd.Text = string.IsNullOrWhiteSpace(job.TimelapseDailyEnd) ? "17:00" : job.TimelapseDailyEnd;
 
                 _lstTargets.Items.Clear();
                 foreach (var t in job.Targets) _lstTargets.Items.Add(new TargetItem(t));
@@ -228,6 +255,11 @@ namespace AutoExporter.AdminPlugin
                 _chkTimestamp.Checked = false;
                 _numRangeValue.Value = 1;
                 _cboRangeUnit.SelectedItem = "Days";
+                _numTlInterval.Value = 60;
+                _cboTlFps.SelectedItem = 24;
+                _chkTlDaily.Checked = false;
+                _txtTlDailyStart.Text = "08:00";
+                _txtTlDailyEnd.Text = "17:00";
                 _lstTargets.Items.Clear();
                 UpdateFormatUi();
             }
@@ -246,6 +278,9 @@ namespace AutoExporter.AdminPlugin
                 return "Encryption is enabled. Please enter a password.";
             if (_radAvi.Checked && _chkEncrypt.Checked)
                 return "AVI format does not support encryption. Disable encryption or switch to XProtect.";
+            if (_radTimelapse.Checked && _chkTlDaily.Checked &&
+                (!TimeSpan.TryParse(_txtTlDailyStart.Text.Trim(), out _) || !TimeSpan.TryParse(_txtTlDailyEnd.Text.Trim(), out _)))
+                return "Please enter the daily window times as HH:mm (for example 08:00 and 17:00).";
             return null;
         }
 
@@ -256,13 +291,18 @@ namespace AutoExporter.AdminPlugin
                 Name = _txtName.Text.Trim(),
                 Enabled = _chkEnabled.Checked,
                 AgentHostname = (_cboAgent.SelectedItem as AgentChoice)?.Hostname ?? "",
-                Format = _radAvi.Checked ? "AVI" : "XProtect",
+                Format = _radTimelapse.Checked ? "Timelapse" : (_radAvi.Checked ? "AVI" : "XProtect"),
                 Encrypt = _chkEncrypt.Checked,
                 Password = _txtPassword.Text,
                 IncludeAudio = true,   // audio is always exported (the UI option was removed)
                 Timestamp = _chkTimestamp.Checked,
                 RangeValue = (int)_numRangeValue.Value,
                 RangeUnit = _cboRangeUnit.SelectedItem?.ToString() ?? "Days",
+                TimelapseIntervalSeconds = (int)_numTlInterval.Value,
+                TimelapseFps = _cboTlFps.SelectedItem is int fps ? fps : 24,
+                TimelapseDailyEnabled = _chkTlDaily.Checked,
+                TimelapseDailyStart = _txtTlDailyStart.Text.Trim(),
+                TimelapseDailyEnd = _txtTlDailyEnd.Text.Trim(),
             };
             foreach (var obj in _lstTargets.Items)
                 if (obj is TargetItem ti) job.Targets.Add(ti.Target);
@@ -316,13 +356,31 @@ namespace AutoExporter.AdminPlugin
         private void UpdateFormatUi()
         {
             bool xp = _radXProtect.Checked;
+            bool tl = _radTimelapse.Checked;
+
             _chkEncrypt.Enabled = xp;
             _txtPassword.Enabled = xp && _chkEncrypt.Checked;
             if (!xp) _chkEncrypt.Checked = false;
 
-            // Timestamp burn-in is an AVI-only feature.
+            // Timestamp burn-in applies to AVI and Timelapse, not the native XProtect format.
             _chkTimestamp.Enabled = !xp;
             if (xp) _chkTimestamp.Checked = false;
+
+            // Timelapse-only controls.
+            _numTlInterval.Enabled = tl;
+            _cboTlFps.Enabled = tl;
+            _chkTlDaily.Enabled = tl;
+            bool daily = tl && _chkTlDaily.Checked;
+            _txtTlDailyStart.Enabled = daily;
+            _txtTlDailyEnd.Enabled = daily;
+        }
+
+        // Select the stored fps in the dropdown, adding it if it is not one of the presets.
+        private void SelectFps(int fps)
+        {
+            if (fps <= 0) fps = 24;
+            if (!_cboTlFps.Items.Contains(fps)) _cboTlFps.Items.Add(fps);
+            _cboTlFps.SelectedItem = fps;
         }
 
         private static decimal Clamp(int value, decimal min, decimal max)

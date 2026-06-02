@@ -22,17 +22,27 @@ namespace AutoExporter.Contracts
         public string Name = "New Job";
         public bool Enabled = true;
         public string AgentHostname = "";     // which registered agent runs this job
-        public string Format = "XProtect";   // "XProtect" | "AVI"
+        public string Format = "XProtect";   // "XProtect" | "AVI" | "Timelapse"
         public bool Encrypt;
         public string Password = "";
         // Audio is always exported. The Smart Client ™ Player ("include player") is intentionally
         // not offered: the SDK can only bundle the player when the export runs inside the Smart
         // Client itself, so a standalone agent can never produce it. See the plugin help page.
         public bool IncludeAudio = true;
-        public bool Timestamp;                 // AVI only: burn the recording time into the video frames
+        public bool Timestamp;                 // AVI and Timelapse: burn the recording time into the video frames
         public int RangeValue = 1;
         public string RangeUnit = "Days";     // Minutes | Hours | Days | Months
         public List<JobTarget> Targets = new List<JobTarget>();
+
+        // ----- Timelapse options (Format = "Timelapse") -----
+        // One MP4 per camera. The agent samples one recorded frame per TimelapseIntervalSeconds of
+        // footage (recording gaps are skipped) and plays them back at TimelapseFps. When the daily
+        // window is enabled, only footage inside DailyStart..DailyEnd (local time of day) is used.
+        public int TimelapseIntervalSeconds = 60;
+        public int TimelapseFps = 24;
+        public bool TimelapseDailyEnabled;
+        public string TimelapseDailyStart = "08:00";
+        public string TimelapseDailyEnd = "17:00";
 
         public static class Keys
         {
@@ -46,6 +56,11 @@ namespace AutoExporter.Contracts
             public const string Timestamp = "Timestamp";
             public const string RangeValue = "RangeValue";
             public const string RangeUnit = "RangeUnit";
+            public const string TimelapseIntervalSeconds = "TimelapseIntervalSeconds";
+            public const string TimelapseFps = "TimelapseFps";
+            public const string TimelapseDailyEnabled = "TimelapseDailyEnabled";
+            public const string TimelapseDailyStart = "TimelapseDailyStart";
+            public const string TimelapseDailyEnd = "TimelapseDailyEnd";
             public const string TargetsCount = "Targets_Count";
             // Per-target: Targets_{i}_Kind / _ObjectId / _Name
         }
@@ -64,6 +79,11 @@ namespace AutoExporter.Contracts
                 [Keys.Timestamp] = Timestamp ? "Yes" : "No",
                 [Keys.RangeValue] = RangeValue.ToString(CultureInfo.InvariantCulture),
                 [Keys.RangeUnit] = RangeUnit ?? "Days",
+                [Keys.TimelapseIntervalSeconds] = TimelapseIntervalSeconds.ToString(CultureInfo.InvariantCulture),
+                [Keys.TimelapseFps] = TimelapseFps.ToString(CultureInfo.InvariantCulture),
+                [Keys.TimelapseDailyEnabled] = TimelapseDailyEnabled ? "Yes" : "No",
+                [Keys.TimelapseDailyStart] = TimelapseDailyStart ?? "08:00",
+                [Keys.TimelapseDailyEnd] = TimelapseDailyEnd ?? "17:00",
                 [Keys.TargetsCount] = Targets.Count.ToString(CultureInfo.InvariantCulture),
             };
             for (int i = 0; i < Targets.Count; i++)
@@ -89,6 +109,11 @@ namespace AutoExporter.Contracts
                 Timestamp = IsYes(Get(p, Keys.Timestamp, "No")),
                 RangeValue = GetInt(p, Keys.RangeValue, 1),
                 RangeUnit = Get(p, Keys.RangeUnit, "Days"),
+                TimelapseIntervalSeconds = GetInt(p, Keys.TimelapseIntervalSeconds, 60),
+                TimelapseFps = GetInt(p, Keys.TimelapseFps, 24),
+                TimelapseDailyEnabled = IsYes(Get(p, Keys.TimelapseDailyEnabled, "No")),
+                TimelapseDailyStart = Get(p, Keys.TimelapseDailyStart, "08:00"),
+                TimelapseDailyEnd = Get(p, Keys.TimelapseDailyEnd, "17:00"),
             };
             int count = GetInt(p, Keys.TargetsCount, 0);
             for (int i = 0; i < count; i++)

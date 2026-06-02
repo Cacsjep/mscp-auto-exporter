@@ -1,5 +1,7 @@
 using System;
 using System.Collections.Generic;
+using System.Drawing;
+using System.Globalization;
 using System.IO;
 using System.Linq;
 using System.Text;
@@ -80,9 +82,13 @@ namespace AutoExporter.Agent
                 Log.Info($"Start format={job.Format} cameras={cameras.Count} range={startUtc:O} to {endUtc:O}");
 
                 bool isAvi = string.Equals(job.Format, "AVI", StringComparison.OrdinalIgnoreCase);
-                bool ok = isAvi
-                    ? RunAvi(job, cameras, startUtc, endUtc, outputFolder, out var err)
-                    : RunDb(job, cameras, startUtc, endUtc, outputFolder, out err);
+                bool isTimelapse = string.Equals(job.Format, "Timelapse", StringComparison.OrdinalIgnoreCase);
+                string err;
+                bool ok = isTimelapse
+                    ? RunTimelapse(job, cameras, startUtc, endUtc, outputFolder, out err)
+                    : isAvi
+                        ? RunAvi(job, cameras, startUtc, endUtc, outputFolder, out err)
+                        : RunDb(job, cameras, startUtc, endUtc, outputFolder, out err);
 
                 result.BytesWritten = MeasureSize(outputFolder);
                 result.Success = ok;
@@ -373,6 +379,161 @@ namespace AutoExporter.Agent
                 finally { SafeEnd(exporter); }
             }
             return true;
+        }
+
+        // ----- Timelapse (per camera, FFmpeg H.264 MP4) -----
+
+        // One MP4 per camera. We ask the recorder for the recording segments in range, sample one
+        // frame per interval (recording gaps are skipped), optionally burn the time into the frame,
+        // and feed the frames to the H.264 encoder. Progress is per camera, like AVI.
+        private bool RunTimelapse(JobConfig job, List<Item> cameras, DateTime startUtc, DateTime endUtc, string outputFolder, out string error)
+        {
+            error = null;
+
+            // The MIP sequence and frame APIs work in local time, so run the whole timelapse path in
+            // local time (convert the run's UTC range once here).
+            var localStart = startUtc.ToLocalTime();
+            var localEnd = endUtc.ToLocalTime();
+            var interval = TimeSpan.FromSeconds(Math.Max(1, job.TimelapseIntervalSeconds));
+            int fps = job.TimelapseFps <= 0 ? 24 : job.TimelapseFps;
+
+            TimeSpan dailyStart = TimeSpan.Zero, dailyEnd = TimeSpan.Zero;
+            if (job.TimelapseDailyEnabled &&
+                (!TryParseTimeOfDay(job.TimelapseDailyStart, out dailyStart) ||
+                 !TryParseTimeOfDay(job.TimelapseDailyEnd, out dailyEnd)))
+            {
+                error = $"Invalid timelapse daily window ('{job.TimelapseDailyStart}' to '{job.TimelapseDailyEnd}'), expected HH:mm.";
+                return false;
+            }
+
+            for (int i = 0; i < cameras.Count; i++)
+            {
+                if (_shouldStop != null && _shouldStop()) return false;   // recorded as Stopped upstream
+
+                var cam = cameras[i];
+                var name = MakeSafeFileName(cam?.Name ?? $"camera_{i}");
+                Log.Info($"Timelapse cam {i + 1}/{cameras.Count}: '{cam?.Name}'");
+
+                // Build the list of sample timestamps from the recording segments.
+                List<DateTime> stamps;
+                using (var q = new SequenceQuery(cam))
+                {
+                    var segments = q.GetRecordingSegments(localStart, localEnd);
+                    if (job.TimelapseDailyEnabled)
+                        segments = TimestampGenerator.ClipToDailyWindow(segments, dailyStart, dailyEnd);
+                    stamps = TimestampGenerator.GenerateContinuous(segments, interval);
+                }
+                if (stamps.Count == 0)
+                {
+                    Log.Info($"Timelapse: '{cam?.Name}' has no footage to sample in range, skipping.");
+                    continue;
+                }
+
+                var outPath = Path.Combine(outputFolder, name + ".mp4");
+
+                using (var source = new CameraFrameSource(cam))
+                {
+                    // The first decodable frame fixes the encoder dimensions.
+                    Bitmap firstFrame = null;
+                    int firstIndex = -1;
+                    for (int s = 0; s < stamps.Count; s++)
+                    {
+                        if (_shouldStop != null && _shouldStop()) return false;
+                        var (f, _) = source.GetFrame(stamps[s]);
+                        if (f != null) { firstFrame = f; firstIndex = s; break; }
+                    }
+                    if (firstFrame == null)
+                    {
+                        Log.Info($"Timelapse: '{cam?.Name}' returned no decodable frames, skipping.");
+                        continue;
+                    }
+
+                    TimelapseEncoder encoder = null;
+                    try
+                    {
+                        encoder = new TimelapseEncoder(firstFrame.Width, firstFrame.Height, fps, outPath, Log.Info);
+                        if (!encoder.Start())
+                        {
+                            firstFrame.Dispose();
+                            error = $"Camera '{cam?.Name}': could not start the timelapse encoder.";
+                            return false;
+                        }
+
+                        int written = 0;
+                        for (int s = firstIndex; s < stamps.Count; s++)
+                        {
+                            if (_shouldStop != null && _shouldStop())
+                            {
+                                Log.Info($"Service stopping, cancelling timelapse of '{cam?.Name}'.");
+                                if (s == firstIndex) firstFrame.Dispose();
+                                return false;
+                            }
+
+                            Bitmap frame = (s == firstIndex) ? firstFrame : source.GetFrame(stamps[s]).Frame;
+                            if (frame == null) continue;
+                            try
+                            {
+                                if (job.Timestamp) DrawTimestamp(frame, stamps[s]);
+                                encoder.PushFrame(frame);
+                                written++;
+                            }
+                            finally { frame.Dispose(); }
+
+                            int pct = (int)((s + 1) * 100L / stamps.Count);
+                            _onProgress?.Invoke(i, cameras.Count, pct, cam?.Name ?? "");
+
+                            // Keep the recorder/media callbacks serviced on this STA thread.
+                            System.Windows.Forms.Application.DoEvents();
+                        }
+
+                        encoder.Finish();
+                        Log.Info($"Timelapse: '{cam?.Name}' wrote {written} frame(s) to '{name}.mp4'.");
+                    }
+                    finally { SafeDispose(encoder); }
+                }
+            }
+            return true;
+        }
+
+        private static void SafeDispose(TimelapseEncoder encoder)
+        {
+            try { encoder?.Dispose(); } catch { }
+        }
+
+        private static bool TryParseTimeOfDay(string s, out TimeSpan t)
+        {
+            t = TimeSpan.Zero;
+            if (string.IsNullOrWhiteSpace(s)) return false;
+            return TimeSpan.TryParse(s.Trim(), CultureInfo.InvariantCulture, out t);
+        }
+
+        // Burns the recording time into the bottom-left of the frame, with a semi-transparent backing
+        // box for legibility. Best effort: a failure here never fails the export.
+        private static void DrawTimestamp(Bitmap frame, DateTime ts)
+        {
+            try
+            {
+                using (var g = Graphics.FromImage(frame))
+                {
+                    string text = ts.ToString("yyyy-MM-dd HH:mm:ss");
+                    float fontSize = Math.Max(12f, frame.Height / 30f);
+                    using (var font = new Font("Segoe UI", fontSize, FontStyle.Bold, GraphicsUnit.Pixel))
+                    {
+                        var size = g.MeasureString(text, font);
+                        float pad = fontSize * 0.4f;
+                        float x = pad;
+                        float y = frame.Height - size.Height - pad;
+
+                        using (var bg = new SolidBrush(Color.FromArgb(160, 0, 0, 0)))
+                            g.FillRectangle(bg, x - pad / 2f, y - pad / 2f, size.Width + pad, size.Height + pad);
+
+                        g.TextRenderingHint = System.Drawing.Text.TextRenderingHint.AntiAlias;
+                        using (var fg = new SolidBrush(Color.White))
+                            g.DrawString(text, font, fg, x, y);
+                    }
+                }
+            }
+            catch { }
         }
 
         // ----- Common -----

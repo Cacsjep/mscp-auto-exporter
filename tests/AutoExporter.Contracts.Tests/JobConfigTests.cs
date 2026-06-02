@@ -21,6 +21,11 @@ namespace AutoExporter.Contracts.Tests
                 Timestamp = true,
                 RangeValue = 12,
                 RangeUnit = "Hours",
+                TimelapseIntervalSeconds = 30,
+                TimelapseFps = 15,
+                TimelapseDailyEnabled = true,
+                TimelapseDailyStart = "06:30",
+                TimelapseDailyEnd = "21:45",
             };
             job.Targets.Add(new JobTarget { Kind = "Camera", ObjectId = Guid.NewGuid(), Name = "Front" });
             job.Targets.Add(new JobTarget { Kind = "Group", ObjectId = Guid.NewGuid(), Name = "Lobby" });
@@ -37,6 +42,11 @@ namespace AutoExporter.Contracts.Tests
             Assert.True(loaded.Timestamp);
             Assert.Equal(12, loaded.RangeValue);
             Assert.Equal("Hours", loaded.RangeUnit);
+            Assert.Equal(30, loaded.TimelapseIntervalSeconds);
+            Assert.Equal(15, loaded.TimelapseFps);
+            Assert.True(loaded.TimelapseDailyEnabled);
+            Assert.Equal("06:30", loaded.TimelapseDailyStart);
+            Assert.Equal("21:45", loaded.TimelapseDailyEnd);
             Assert.Equal(2, loaded.Targets.Count);
             Assert.Equal("Camera", loaded.Targets[0].Kind);
             Assert.Equal("Front", loaded.Targets[0].Name);
@@ -53,6 +63,9 @@ namespace AutoExporter.Contracts.Tests
             Assert.False(loaded.Encrypt);
             Assert.Equal(1, loaded.RangeValue);
             Assert.Equal("Days", loaded.RangeUnit);
+            Assert.Equal(60, loaded.TimelapseIntervalSeconds);
+            Assert.Equal(24, loaded.TimelapseFps);
+            Assert.False(loaded.TimelapseDailyEnabled);
             Assert.Empty(loaded.Targets);
         }
 

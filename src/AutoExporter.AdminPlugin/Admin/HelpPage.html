@@ -49,7 +49,7 @@
 <h2>Set up a job</h2>
 <ol>
   <li>Open <strong>Jobs</strong> (or the Overview Jobs section) and add a job.</li>
-  <li>Give it a name, pick the <strong>agent</strong> that runs it, choose the format (AVI or XProtect™), set the time range, and add the <strong>cameras or camera groups</strong>.</li>
+  <li>Give it a name, pick the <strong>agent</strong> that runs it, choose the format (AVI, XProtect™, or Timelapse), set the time range, and add the <strong>cameras or camera groups</strong>.</li>
   <li>Save. A job cannot be saved without a name, an agent, and at least one camera or group.</li>
   <li>Use <strong>Run now</strong> in the Jobs section to test it, or build an XProtect™ Rule with the <strong>Run Auto Export Job</strong> action. Watch the <strong>Executions</strong> section for the result.</li>
 </ol>
@@ -60,7 +60,8 @@
   <ul>
     <li><strong>AVI</strong> produces a standard video file per camera that plays in any media player. It is the default and needs no Milestone software to view. It does not support encryption. Tick <strong>Burn in timestamp</strong> to draw the recording time onto the video frames.</li>
     <li><strong>XProtect™</strong> produces the Milestone database export (a Data folder plus a project file) and supports encryption. You open it in a Smart Client ™ to review it.</li>
-    <li>The bundled <strong>Smart Client ™ Player</strong> (the standalone <code>SmartClient-Player.exe</code> you get from an export made inside the Smart Client) is <strong>not</strong> included. Milestone only adds the player when the export runs from within the Smart Client itself, so a standalone service such as this agent cannot produce it. Use AVI if the recipient has no Milestone software, or open the XProtect™ export in a Smart Client ™.</li>
+    <li><strong>Timelapse</strong> produces a short MP4 per camera by sampling one recorded frame at a set interval and playing them back at a chosen frame rate, so hours or days of footage become a brief clip. Recording gaps are skipped, so a long range with little footage still yields a compact video. Set <strong>Frame every N seconds of footage</strong> and the playback <strong>fps</strong>. Tick <strong>Burn in timestamp</strong> to draw the recording time onto each frame. Enable <strong>Limit to daily window</strong> to use only footage inside a time of day range each day (for example 08:00 to 17:00), which suits daytime construction or outdoor timelapses. The MP4 plays anywhere and needs no Milestone software.</li>
+    <li>The bundled <strong>Smart Client ™ Player</strong> (the standalone <code>SmartClient-Player.exe</code> you get from an export made inside the Smart Client) is <strong>not</strong> included. Milestone only adds the player when the export runs from within the Smart Client itself, so a standalone service such as this agent cannot produce it. Use AVI or Timelapse if the recipient has no Milestone software, or open the XProtect™ export in a Smart Client ™.</li>
   </ul>
 </div>
 
