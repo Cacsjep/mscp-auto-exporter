@@ -1,6 +1,6 @@
 # Auto Exporter
 
-Standalone Milestone XProtect (TM) auto-export system. An agent **service** exports video, a **tray app**
+Standalone Milestone XProtect™ auto-export system. An agent **service** exports video, a **tray app**
 configures it, and a Management Client **plugin** defines jobs and shows status.
 
 Style: no em dashes or semicolons in prose, docs or comments.
@@ -61,4 +61,4 @@ on push, and a `v*` tag builds the MSI and attaches it to the GitHub release.
 ## License
 
 MIT (see `LICENSE`). Independent open source project, not affiliated with Milestone Systems.
-XProtect (TM) is a trademark of Milestone Systems A/S.
+XProtect™ is a trademark of Milestone Systems A/S.

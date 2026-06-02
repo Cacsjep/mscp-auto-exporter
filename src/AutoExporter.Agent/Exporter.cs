@@ -267,7 +267,7 @@ namespace AutoExporter.Agent
             {
                 // The constructor bool is the block (.scp) database format. We use the standard
                 // export format (false) and write the database plus its project file to disk. The
-                // Smart Client (TM) Player is deliberately not bundled (IncludePlayer left at its
+                // Smart Client ™ Player is deliberately not bundled (IncludePlayer left at its
                 // false default): the SDK can only include the player when the export runs inside the
                 // Smart Client, so a standalone service can never produce it.
                 exporter = new DBExporter(false)

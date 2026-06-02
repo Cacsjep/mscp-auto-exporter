@@ -25,7 +25,7 @@ namespace AutoExporter.Contracts
         public string Format = "XProtect";   // "XProtect" | "AVI"
         public bool Encrypt;
         public string Password = "";
-        // Audio is always exported. The Smart Client (TM) Player ("include player") is intentionally
+        // Audio is always exported. The Smart Client ™ Player ("include player") is intentionally
         // not offered: the SDK can only bundle the player when the export runs inside the Smart
         // Client itself, so a standalone agent can never produce it. See the plugin help page.
         public bool IncludeAudio = true;

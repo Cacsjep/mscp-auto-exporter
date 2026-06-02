@@ -168,7 +168,7 @@
     <UI>
       <ProgressText Action="CA_StopTray" Message="Closing the Auto Exporter tray..." />
       <ProgressText Action="CA_RemoveData" Message="Removing Auto Exporter data..." />
-      <ProgressText Action="CA_StopManagementClient" Message="Closing the XProtect (TM) Management Client..." />
+      <ProgressText Action="CA_StopManagementClient" Message="Closing the XProtect™ Management Client..." />
       <ProgressText Action="CA_StopEventServer" Message="Stopping the Milestone Event Server..." />
       <ProgressText Action="CA_StartEventServer" Message="Starting the Milestone Event Server..." />
 
@@ -186,7 +186,7 @@
       <ServiceInstall Id="svcInstall"
                       Name="AutoExporterAgent"
                       DisplayName="Auto Exporter Agent"
-                      Description="Performs Milestone XProtect (TM) exports on this machine."
+                      Description="Performs Milestone XProtect™ exports on this machine."
                       Type="ownProcess"
                       Start="auto"
                       ErrorControl="normal"

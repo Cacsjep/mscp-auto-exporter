@@ -18,14 +18,14 @@ namespace AutoExporter.AdminPlugin
         private readonly TextBox _txtName = new TextBox();
         private readonly CheckBox _chkEnabled = new CheckBox { Text = "Enabled", Checked = true };
         private readonly ComboBox _cboAgent = new ComboBox { DropDownStyle = ComboBoxStyle.DropDownList, Width = 320 };
-        private readonly RadioButton _radXProtect = new RadioButton { Text = "XProtect (TM) format", AutoSize = true };
+        private readonly RadioButton _radXProtect = new RadioButton { Text = "XProtect™ format", AutoSize = true };
         private readonly RadioButton _radAvi = new RadioButton { Text = "AVI", Checked = true, AutoSize = true };
         private readonly Label _lblFormatHint = new Label
         {
             AutoSize = true,
             MaximumSize = new System.Drawing.Size(360, 0),
             ForeColor = System.Drawing.SystemColors.GrayText,
-            Text = "XProtect (TM) format opens only in a Smart Client (TM) (the standalone player " +
+            Text = "XProtect™ format opens only in a Smart Client ™ (the standalone player " +
                    "cannot be bundled here). Use AVI for a file that plays anywhere.",
         };
         private readonly CheckBox _chkEncrypt = new CheckBox { Text = "Encrypt", AutoSize = true };
