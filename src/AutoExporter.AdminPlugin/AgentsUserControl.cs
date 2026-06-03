@@ -91,7 +91,7 @@ namespace AutoExporter.AdminPlugin
             _list.Columns.Add("Export folder", 240);
             _list.SelectedIndexChanged += (_, __) => UpdateButtons();
 
-            var top = new FlowLayoutPanel { Dock = DockStyle.Top, Height = 36, Padding = new Padding(6) };
+            var top = new FlowLayoutPanel { Dock = DockStyle.Top, Height = 30, Padding = new Padding(6, 0, 6, 6) };
             _remove.Click += (_, __) => RemoveSelected();
             top.Controls.Add(_remove);
 

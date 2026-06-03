@@ -45,7 +45,7 @@ namespace AutoExporter.AdminPlugin
             _list.Columns.Add("Last status", 90);
             _list.DoubleClick += (_, __) => EditSelected();
 
-            var top = new FlowLayoutPanel { Dock = DockStyle.Top, Height = 36, Padding = new Padding(6) };
+            var top = new FlowLayoutPanel { Dock = DockStyle.Top, Height = 30, Padding = new Padding(6, 0, 6, 6) };
             var add = new Button { Text = "Add job...", Width = 90 };
             var edit = new Button { Text = "Edit", Width = 70 };
             var del = new Button { Text = "Delete", Width = 70 };

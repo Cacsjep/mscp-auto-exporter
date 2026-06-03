@@ -67,15 +67,25 @@ namespace AutoExporter.AdminPlugin
             _list.Columns.Add("Job", 150);
             _list.Columns.Add("Agent", 120);
             _list.Columns.Add("Outcome", 80);
+            _list.Columns.Add("Progress", 110);
             _list.Columns.Add("Cameras", 70);
             _list.Columns.Add("Size", 90);
             _list.Columns.Add("Trigger", 70);
             _list.Columns.Add("Detail", 320);
 
+            // Owner draw so the Progress column can show a real progress bar while a run is in flight.
+            // The other cells fall back to a plain text draw, and we redraw the grid lines ourselves
+            // because owner drawing turns the built-in ones off.
+            _list.OwnerDraw = true;
+            _list.DrawColumnHeader += (_, e) => e.DrawDefault = true;
+            _list.DrawItem += (_, __) => { };   // Details view paints per subitem below
+            _list.DrawSubItem += OnDrawSubItem;
+
             var top = new FlowLayoutPanel
             {
                 Dock = DockStyle.Top,
-                Height = 28,
+                Height = 30,
+                Padding = new Padding(6, 0, 6, 6),
                 FlowDirection = FlowDirection.LeftToRight,
             };
             top.Controls.Add(_clear);
@@ -261,6 +271,7 @@ namespace AutoExporter.AdminPlugin
                 item.SubItems.Add(r.JobName ?? "");
                 item.SubItems.Add(AgentsUserControl.FriendlyName(r.AgentHostname, friendly));
                 item.SubItems.Add(OutcomeText(r));
+                item.SubItems.Add("");   // Progress, drawn as a bar in OnDrawSubItem
                 item.SubItems.Add(r.CameraCount.ToString(CultureInfo.InvariantCulture));
                 item.SubItems.Add(HumanSize(r.BytesWritten));
                 item.SubItems.Add(r.Trigger ?? "");
@@ -274,13 +285,64 @@ namespace AutoExporter.AdminPlugin
             try { ExecutionsUpdated?.Invoke(snapshot); } catch { }
         }
 
-        // "Running 45%" while a run is in progress (the agent reports overall percent), else the outcome.
+        // Just the outcome word now ("Running", "Success", ...). The live percent is shown by the
+        // progress bar in the Progress column instead of being appended here.
         internal static string OutcomeText(ExecutionRecord r)
+            => r.Outcome ?? (r.Success ? "Success" : "Failed");
+
+        private static bool IsRunning(ExecutionRecord r)
+            => string.Equals(r.Outcome, "Running", StringComparison.OrdinalIgnoreCase);
+
+        // Plain text draw for normal cells plus a drawn progress bar for the Progress column of a
+        // running row, with grid lines redrawn to match the rest of the list.
+        private static readonly Pen GridPen = new Pen(Color.FromArgb(0xDA, 0xDA, 0xDA));
+        private const int ProgressCol = 4;
+
+        private void OnDrawSubItem(object sender, DrawListViewSubItemEventArgs e)
         {
-            var o = r.Outcome ?? (r.Success ? "Success" : "Failed");
-            return string.Equals(o, "Running", StringComparison.OrdinalIgnoreCase) && r.Progress > 0
-                ? $"Running {r.Progress}%"
-                : o;
+            // For column 0 the framework hands us the whole row bounds, so clip it to the column.
+            var bounds = e.Bounds;
+            if (e.ColumnIndex == 0 && _list.Columns.Count > 0)
+                bounds = new Rectangle(e.Bounds.Left, e.Bounds.Top, _list.Columns[0].Width, e.Bounds.Height);
+
+            bool selected = e.Item.Selected;
+            using (var bg = new SolidBrush(selected ? SystemColors.Highlight : SystemColors.Window))
+                e.Graphics.FillRectangle(bg, bounds);
+
+            var rec = e.Item.Tag as ExecutionRecord;
+            if (e.ColumnIndex == ProgressCol && rec != null && IsRunning(rec))
+            {
+                DrawProgressBar(e.Graphics, bounds, rec.Progress);
+            }
+            else
+            {
+                var fore = selected ? SystemColors.HighlightText : e.Item.ForeColor;
+                var textRect = Rectangle.Inflate(bounds, -2, 0);
+                TextRenderer.DrawText(e.Graphics, e.SubItem.Text ?? "", _list.Font, textRect, fore,
+                    TextFormatFlags.Left | TextFormatFlags.VerticalCenter | TextFormatFlags.EndEllipsis | TextFormatFlags.NoPrefix);
+            }
+
+            // Right and bottom grid lines, matching the built-in GridLines look.
+            e.Graphics.DrawLine(GridPen, bounds.Right - 1, bounds.Top, bounds.Right - 1, bounds.Bottom - 1);
+            e.Graphics.DrawLine(GridPen, bounds.Left, bounds.Bottom - 1, bounds.Right - 1, bounds.Bottom - 1);
+        }
+
+        private static void DrawProgressBar(Graphics g, Rectangle cell, int progress)
+        {
+            int pct = progress < 0 ? 0 : (progress > 100 ? 100 : progress);
+            var bar = Rectangle.Inflate(cell, -3, -4);
+            if (bar.Width <= 2 || bar.Height <= 2) return;
+
+            using (var track = new SolidBrush(Color.FromArgb(0xE6, 0xE6, 0xE6)))
+                g.FillRectangle(track, bar);
+            var fill = new Rectangle(bar.X, bar.Y, (int)(bar.Width * (pct / 100.0)), bar.Height);
+            using (var fb = new SolidBrush(Color.RoyalBlue))
+                g.FillRectangle(fb, fill);
+            using (var border = new Pen(Color.FromArgb(0xB0, 0xB0, 0xB0)))
+                g.DrawRectangle(border, bar);
+
+            TextRenderer.DrawText(g, pct + "%", SystemFonts.DefaultFont, bar, Color.Black,
+                TextFormatFlags.HorizontalCenter | TextFormatFlags.VerticalCenter | TextFormatFlags.NoPrefix);
         }
 
         private static string DetailText(ExecutionRecord r)
