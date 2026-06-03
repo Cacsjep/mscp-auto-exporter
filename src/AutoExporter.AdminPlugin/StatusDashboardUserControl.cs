@@ -301,8 +301,15 @@ namespace AutoExporter.AdminPlugin
 
             var friendly = AgentsUserControl.FriendlyNames();
 
+            // The list is rebuilt on every refresh, so remember which run is selected (and the scroll
+            // position) and restore them after, otherwise the periodic refresh drops the user's pick.
+            Guid selectedRunId = (_list.SelectedItems.Count > 0 && _list.SelectedItems[0].Tag is ExecutionRecord sel)
+                ? sel.RunId : Guid.Empty;
+            Guid topRunId = (_list.TopItem?.Tag is ExecutionRecord topr) ? topr.RunId : Guid.Empty;
+
             _list.BeginUpdate();
             _list.Items.Clear();
+            ListViewItem toSelect = null, toTop = null;
             foreach (var r in snapshot)
             {
                 var item = new ListViewItem(ToLocal(r.StartedUtc)) { Tag = r };
@@ -316,7 +323,18 @@ namespace AutoExporter.AdminPlugin
                 item.SubItems.Add(DetailText(r));
                 item.ForeColor = RowColor(r);
                 _list.Items.Add(item);
+
+                if (r.RunId != Guid.Empty && r.RunId == selectedRunId) toSelect = item;
+                if (r.RunId != Guid.Empty && r.RunId == topRunId) toTop = item;
             }
+
+            if (toSelect != null)
+            {
+                toSelect.Selected = true;
+                toSelect.Focused = true;
+            }
+            // Restore the scroll position last so the kept selection does not yank the view.
+            if (toTop != null) _list.TopItem = toTop;
             _list.EndUpdate();
 
             SetStatus($"{snapshot.Count} run(s) from {agentCount} agent(s). Last refreshed {NowLocal()}.");
