@@ -224,48 +224,48 @@ namespace AutoExporter.AdminPlugin
             Controls.Add(root);
         }
 
-        // The cameras list with Remove on the left edge and Add on the right edge, both sitting under
-        // the list across its width. Docked to the top so it clears the group caption.
+        // The cameras list with Remove on the left edge and Add on the right edge directly under it.
+        // A two row table holds the list and the button row, so there is no flow-layout gap between
+        // them and no leftover space below the buttons.
         private Control BuildTargetsPanel()
         {
             const int listWidth = 320;
 
-            var btnAdd = new Button { Text = "Add", AutoSize = true, Margin = new Padding(0) };
-            var btnRemove = new Button { Text = "Remove", AutoSize = true, Margin = new Padding(0) };
+            var btnAdd = new Button { Text = "Add", Width = 60 };
+            var btnRemove = new Button { Text = "Remove", Width = 75 };
             btnAdd.Click += OnAddTargetsClick;
             btnRemove.Click += OnRemoveTargetClick;
 
-            var buttons = new TableLayoutPanel
+            // Button row the width of the list (plus a 1px bleed each side so the button borders sit on
+            // the list's 3D border). Its height is exactly the button height, so nothing pads below.
+            var buttons = new Panel
             {
-                // Two pixels wider than the list and shifted so the buttons bleed 1px past each list
-                // edge. That lines the button borders up with the list's 3D border instead of sitting
-                // a pixel inside it.
                 Width = listWidth + 2,
-                // Just enough headroom that the real font does not clip the button bottoms.
-                Height = btnAdd.PreferredSize.Height + 3,
-                ColumnCount = 2,
-                RowCount = 1,
-                Margin = new Padding(0, 2, 0, 0),   // a small, even gap under the list
+                Height = btnAdd.PreferredSize.Height,
+                Margin = new Padding(0),
             };
-            buttons.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 50));
-            buttons.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 50));
-            btnRemove.Anchor = AnchorStyles.Top | AnchorStyles.Left;    // flush to the list left edge
-            btnAdd.Anchor = AnchorStyles.Top | AnchorStyles.Right;      // flush to the list right edge
-            buttons.Controls.Add(btnRemove, 0, 0);
-            buttons.Controls.Add(btnAdd, 1, 0);
+            btnRemove.Dock = DockStyle.Left;    // flush to the list left edge
+            btnAdd.Dock = DockStyle.Right;       // flush to the list right edge
+            buttons.Controls.Add(btnRemove);
+            buttons.Controls.Add(btnAdd);
 
             _lstTargets.Width = listWidth;
-            _lstTargets.Margin = new Padding(1, 0, 0, 0);   // open 1px on the left so the row can bleed out
-            var targetsPanel = new FlowLayoutPanel
+            _lstTargets.IntegralHeight = false;             // exact height, no partial-row whitespace
+            _lstTargets.Margin = new Padding(1, 0, 0, 0);   // open 1px left so the buttons can bleed out
+
+            var panel = new TableLayoutPanel
             {
-                FlowDirection = FlowDirection.TopDown,
                 AutoSize = true,
-                WrapContents = false,   // keep the buttons stacked under the list, not wrapped beside it
+                AutoSizeMode = AutoSizeMode.GrowAndShrink,
+                ColumnCount = 1,
+                RowCount = 2,
                 Dock = DockStyle.Top,
             };
-            targetsPanel.Controls.Add(_lstTargets);
-            targetsPanel.Controls.Add(buttons);
-            return targetsPanel;
+            panel.RowStyles.Add(new RowStyle(SizeType.AutoSize));
+            panel.RowStyles.Add(new RowStyle(SizeType.AutoSize));
+            panel.Controls.Add(_lstTargets, 0, 0);
+            panel.Controls.Add(buttons, 0, 1);
+            return panel;
         }
 
         // A two column label/control table used inside each group box.

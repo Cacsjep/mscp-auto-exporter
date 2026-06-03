@@ -61,7 +61,8 @@ namespace AutoExporter.AdminPlugin
         private void BuildLayout()
         {
             Dock = DockStyle.Fill;
-            Padding = new Padding(10);
+            // No control-level padding, so the toolbar sits right under the section header like the
+            // Agents and Jobs sections (which have none).
 
             _list.Columns.Add("Started", 140);
             _list.Columns.Add("Job", 150);
@@ -81,16 +82,38 @@ namespace AutoExporter.AdminPlugin
             _list.DrawItem += (_, __) => { };   // Details view paints per subitem below
             _list.DrawSubItem += OnDrawSubItem;
 
-            var top = new FlowLayoutPanel
+            // Buttons on the left, the run-count status pinned to the right end of the toolbar.
+            // Same toolbar shape as the Jobs and Agents sections (fixed height, no top padding) so the
+            // gap under the section header matches. Buttons sit at the top-left, the status label is
+            // pinned to the right end.
+            var top = new TableLayoutPanel
             {
                 Dock = DockStyle.Top,
                 Height = 30,
-                Padding = new Padding(6, 0, 6, 6),
-                FlowDirection = FlowDirection.LeftToRight,
+                ColumnCount = 2,
+                RowCount = 1,
+                Padding = new Padding(6, 0, 6, 0),
             };
-            top.Controls.Add(_clear);
-            top.Controls.Add(_stop);
-            top.Controls.Add(_status);
+            top.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));
+            top.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
+
+            var buttons = new FlowLayoutPanel
+            {
+                AutoSize = true,
+                Margin = new Padding(0),
+                FlowDirection = FlowDirection.LeftToRight,
+                WrapContents = false,         // keep both buttons on one row
+            };
+            buttons.Controls.Add(_clear);
+            buttons.Controls.Add(_stop);
+
+            _status.AutoSize = true;
+            _status.Padding = new Padding(0);
+            _status.Anchor = AnchorStyles.Right;   // sticky right, vertically centred
+            _status.TextAlign = ContentAlignment.MiddleRight;
+
+            top.Controls.Add(buttons, 0, 0);
+            top.Controls.Add(_status, 1, 0);
 
             Controls.Add(_list);
             Controls.Add(top);
@@ -161,7 +184,7 @@ namespace AutoExporter.AdminPlugin
                     {
                         foreach (var r in records)
                         {
-                            if (r.RunId != Guid.Empty) _byRun[r.RunId] = r;
+                            if (r.RunId != Guid.Empty) _byRun[r.RunId] = Merge(r);
                             if (!string.IsNullOrEmpty(r.AgentHostname)) _agents.Add(r.AgentHostname);
                         }
                     }
@@ -173,6 +196,21 @@ namespace AutoExporter.AdminPlugin
                 PluginFileLog.Error("OnExecutionsReply failed: " + ex.Message);
             }
             return null;
+        }
+
+        // While a run is in flight the live progress ticks and the periodic store query both arrive as
+        // "Running" records for the same RunId. The stored one carries a stale Progress of 0, so do not
+        // let a Running update lower the progress we already show (it would flicker the bar back to 0).
+        // Caller holds _gate.
+        private ExecutionRecord Merge(ExecutionRecord incoming)
+        {
+            if (_byRun.TryGetValue(incoming.RunId, out var existing)
+                && IsRunning(existing) && IsRunning(incoming)
+                && incoming.Progress < existing.Progress)
+            {
+                return existing;
+            }
+            return incoming;
         }
 
         /// <summary>
@@ -340,9 +378,6 @@ namespace AutoExporter.AdminPlugin
                 g.FillRectangle(fb, fill);
             using (var border = new Pen(Color.FromArgb(0xB0, 0xB0, 0xB0)))
                 g.DrawRectangle(border, bar);
-
-            TextRenderer.DrawText(g, pct + "%", SystemFonts.DefaultFont, bar, Color.Black,
-                TextFormatFlags.HorizontalCenter | TextFormatFlags.VerticalCenter | TextFormatFlags.NoPrefix);
         }
 
         private static string DetailText(ExecutionRecord r)
