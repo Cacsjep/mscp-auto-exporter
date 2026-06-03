@@ -45,16 +45,19 @@ namespace AutoExporter.AdminPlugin
         private readonly CheckBox _chkTlDaily = new CheckBox { Text = "", AutoSize = true };
         private readonly TextBox _txtTlDailyStart = new TextBox { Width = 60, Text = "08:00" };
         private readonly TextBox _txtTlDailyEnd = new TextBox { Width = 60, Text = "17:00" };
-        // Plain language help for the event based fields, shown only in that mode.
-        private readonly Label _lblTlEventHelp = new Label
+        // Plain language help for the event based fields, shown only in that mode. A RichTextBox so the
+        // field names can be bold. It spans both columns and auto-sizes its height to the wrapped text.
+        private readonly RichTextBox _rtbTlEventHelp = new RichTextBox
         {
-            AutoSize = true,
-            MaximumSize = new System.Drawing.Size(380, 0),
+            ReadOnly = true,
+            BorderStyle = BorderStyle.None,
+            BackColor = System.Drawing.SystemColors.Control,
             ForeColor = System.Drawing.SystemColors.GrayText,
-            Text = "Event based walks each recorded clip on its own. Frame interval is how often a " +
-                   "frame is taken inside a clip. Frames per clip is the fewest and most frames taken " +
-                   "from any one clip. Merge clips under joins clips recorded close together so they " +
-                   "count as one clip.",
+            ScrollBars = RichTextBoxScrollBars.None,
+            TabStop = false,
+            Dock = DockStyle.Top,
+            Height = 60,
+            Margin = new Padding(0, 7, 0, 0),   // sit a little below the daily window row
         };
 
         private readonly NumericUpDown _numRangeValue = new NumericUpDown { Minimum = 1, Maximum = 100000, Value = 1, Width = 70 };
@@ -102,6 +105,31 @@ namespace AutoExporter.AdminPlugin
             _cboTlFps.SelectedItem = 24;
             BuildLayout();
             WireDirtyTracking();
+            BuildEventHelpText();
+        }
+
+        // Fill the event help box with plain text and bold the field names so they stand out. The box
+        // grows to fit whatever the wrapped text needs.
+        private void BuildEventHelpText()
+        {
+            _rtbTlEventHelp.ContentsResized += (_, e) => _rtbTlEventHelp.Height = e.NewRectangle.Height + 4;
+            AppendHelp("Event based walks each recorded sequence on its own.\n", false);
+            AppendHelp("Frame interval", true);
+            AppendHelp(" is how often a frame is taken inside a sequence.\n", false);
+            AppendHelp("Frames per sequence", true);
+            AppendHelp(" is the fewest and most frames taken from any one sequence.\n", false);
+            AppendHelp("Merge sequences under", true);
+            AppendHelp(" joins sequences recorded close together so they count as one sequence.", false);
+        }
+
+        private void AppendHelp(string text, bool bold)
+        {
+            _rtbTlEventHelp.SelectionStart = _rtbTlEventHelp.TextLength;
+            _rtbTlEventHelp.SelectionLength = 0;
+            _rtbTlEventHelp.SelectionColor = System.Drawing.SystemColors.GrayText;
+            _rtbTlEventHelp.SelectionFont = new System.Drawing.Font(
+                _rtbTlEventHelp.Font, bold ? System.Drawing.FontStyle.Bold : System.Drawing.FontStyle.Regular);
+            _rtbTlEventHelp.AppendText(text);
         }
 
         // Report any user edit so the host can enable Save. The format pick and the mode radios also
@@ -170,13 +198,13 @@ namespace AutoExporter.AdminPlugin
 
             _rowTlMode = AddRow(format, "Mode", _cboTlMode, centerLabel: true);
             _rowTlContinuous = AddRow(format, "Sample every", Inline(_numTlInterval, Lbl("seconds of footage")), centerLabel: true);
-            _rowTlEvtInterval = AddRow(format, "Frame interval", Inline(_numEvtInterval, Lbl("seconds per clip")), centerLabel: true);
-            _rowTlEvtFrames = AddRow(format, "Frames per clip", Inline(_numEvtMin, Lbl("to"), _numEvtMax), centerLabel: true);
-            _rowTlEvtMerge = AddRow(format, "Merge clips under", Inline(_numEvtMergeGap, Lbl("seconds apart")), centerLabel: true);
+            _rowTlEvtInterval = AddRow(format, "Frame interval", Inline(_numEvtInterval, Lbl("seconds per sequence")), centerLabel: true);
+            _rowTlEvtFrames = AddRow(format, "Frames per sequence", Inline(_numEvtMin, Lbl("to"), _numEvtMax), centerLabel: true);
+            _rowTlEvtMerge = AddRow(format, "Merge sequences under", Inline(_numEvtMergeGap, Lbl("seconds apart")), centerLabel: true);
             _rowTlFps = AddRow(format, "Play back at", Inline(_cboTlFps, Lbl("fps")), centerLabel: true);
             _rowTlTimestamp = AddRow(format, "Burn in timestamp", Inline(_chkTlTimestamp), centerLabel: true);
             _rowTlDaily = AddRow(format, "Daily window", Inline(_chkTlDaily, _txtTlDailyStart, Lbl("to"), _txtTlDailyEnd), centerLabel: true);
-            _rowTlEvtHelp = AddRow(format, "", _lblTlEventHelp);
+            _rowTlEvtHelp = AddSpanRow(format, _rtbTlEventHelp);
 
             // Stack the three groups top to bottom, each filling the width.
             var root = new TableLayoutPanel
@@ -319,6 +347,18 @@ namespace AutoExporter.AdminPlugin
             root.Controls.Add(control, 1, row);
             root.RowCount = row + 1;
             return new Row(lbl, control);
+        }
+
+        // A row whose single control spans both columns (no left caption), for wide content like a
+        // help paragraph.
+        private static Row AddSpanRow(TableLayoutPanel root, Control control)
+        {
+            int row = root.RowCount;
+            root.RowStyles.Add(new RowStyle(SizeType.AutoSize));
+            root.Controls.Add(control, 0, row);
+            root.SetColumnSpan(control, 2);
+            root.RowCount = row + 1;
+            return new Row(null, control);
         }
 
         // ----- Agents -----
@@ -623,7 +663,7 @@ namespace AutoExporter.AdminPlugin
             public Row(Label label, Control control) { _label = label; _control = control; }
             public bool Visible
             {
-                set { _label.Visible = value; _control.Visible = value; }
+                set { if (_label != null) _label.Visible = value; _control.Visible = value; }
             }
         }
 

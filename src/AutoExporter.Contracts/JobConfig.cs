@@ -40,7 +40,7 @@ namespace AutoExporter.Contracts
         // the daily window is enabled, only footage inside DailyStart..DailyEnd (local time of day)
         // is used. Two capture modes:
         //   Continuous  - sample one frame every TimelapseIntervalSeconds of footage.
-        //   EventBased  - per recorded clip (segments merged when closer than the merge gap) take
+        //   EventBased  - per recorded sequence (segments merged when closer than the merge gap) take
         //                 the first frame plus one every TimelapseEventIntervalSeconds, between
         //                 TimelapseEventMinFrames and TimelapseEventMaxFrames frames.
         public string TimelapseMode = "Continuous";   // "Continuous" | "EventBased"
@@ -49,7 +49,7 @@ namespace AutoExporter.Contracts
         public int TimelapseEventIntervalSeconds = 10; // EventBased: seconds between frames in a clip
         public int TimelapseEventMaxFrames = 10;
         public int TimelapseEventMinFrames = 1;
-        public int TimelapseEventMergeGapSeconds = 2;  // clips closer than this count as one event
+        public int TimelapseEventMergeGapSeconds = 2;  // sequences closer than this count as one event
         public bool TimelapseDailyEnabled;
         public string TimelapseDailyStart = "08:00";
         public string TimelapseDailyEnd = "17:00";
