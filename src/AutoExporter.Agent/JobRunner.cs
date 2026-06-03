@@ -115,7 +115,11 @@ namespace AutoExporter.Agent
 
             // Let OnProgress publish live progress against this record while the export runs.
             _runningRec = rec;
-            _isAviFormat = string.Equals(job.Format, "AVI", StringComparison.OrdinalIgnoreCase);
+            // AVI and Timelapse export one camera at a time and report a per-camera percent; DB
+            // reports a single overall percent for the whole run.
+            _isPerCameraProgress =
+                string.Equals(job.Format, "AVI", StringComparison.OrdinalIgnoreCase) ||
+                string.Equals(job.Format, "Timelapse", StringComparison.OrdinalIgnoreCase);
 
             // 4. Pre-run ring cleanup using the agent-wide limits from the tray config.
             var ring = RingStorage.FromGigabytes(outputBase, cfg.MaxGB, cfg.RetentionDays);
@@ -210,7 +214,7 @@ namespace AutoExporter.Agent
 
         private int _lastCam = -1;
         private ExecutionRecord _runningRec;     // the live "Running" record progress is published against
-        private bool _isAviFormat;               // AVI exports per camera; DB reports one overall percent
+        private bool _isPerCameraProgress;       // AVI/Timelapse export per camera; DB reports one overall percent
         private int _lastPublishedPct = -1;
         private int _lastPublishTick;
 
@@ -226,10 +230,10 @@ namespace AutoExporter.Agent
 
             if (_runningRec == null) return;
 
-            // DB export reports one overall percent for the whole run; AVI reports a per-camera percent,
-            // so fold the camera index into an overall figure.
+            // DB export reports one overall percent for the whole run; AVI and Timelapse report a
+            // per-camera percent, so fold the camera index into an overall figure.
             int clamped = pct < 0 ? 0 : (pct > 100 ? 100 : pct);
-            int overall = _isAviFormat && total > 0
+            int overall = _isPerCameraProgress && total > 0
                 ? (int)((cameraIndex * 100L + clamped) / total)
                 : clamped;
 

@@ -61,26 +61,59 @@ namespace AutoExporter.AdminPlugin
         private void BuildLayout()
         {
             Dock = DockStyle.Fill;
-            Padding = new Padding(10);
+            // No control-level padding, so the toolbar sits right under the section header like the
+            // Agents and Jobs sections (which have none).
 
             _list.Columns.Add("Started", 140);
             _list.Columns.Add("Job", 150);
             _list.Columns.Add("Agent", 120);
             _list.Columns.Add("Outcome", 80);
+            _list.Columns.Add("Progress", 110);
             _list.Columns.Add("Cameras", 70);
             _list.Columns.Add("Size", 90);
             _list.Columns.Add("Trigger", 70);
             _list.Columns.Add("Detail", 320);
 
-            var top = new FlowLayoutPanel
+            // Owner draw so the Progress column can show a real progress bar while a run is in flight.
+            // The other cells fall back to a plain text draw, and we redraw the grid lines ourselves
+            // because owner drawing turns the built-in ones off.
+            _list.OwnerDraw = true;
+            _list.DrawColumnHeader += (_, e) => e.DrawDefault = true;
+            _list.DrawItem += (_, __) => { };   // Details view paints per subitem below
+            _list.DrawSubItem += OnDrawSubItem;
+
+            // Buttons on the left, the run-count status pinned to the right end of the toolbar.
+            // Same toolbar shape as the Jobs and Agents sections (fixed height, no top padding) so the
+            // gap under the section header matches. Buttons sit at the top-left, the status label is
+            // pinned to the right end.
+            var top = new TableLayoutPanel
             {
                 Dock = DockStyle.Top,
-                Height = 28,
-                FlowDirection = FlowDirection.LeftToRight,
+                Height = 30,
+                ColumnCount = 2,
+                RowCount = 1,
+                Padding = new Padding(6, 0, 6, 0),
             };
-            top.Controls.Add(_clear);
-            top.Controls.Add(_stop);
-            top.Controls.Add(_status);
+            top.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));
+            top.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
+
+            var buttons = new FlowLayoutPanel
+            {
+                AutoSize = true,
+                Margin = new Padding(0),
+                FlowDirection = FlowDirection.LeftToRight,
+                WrapContents = false,         // keep both buttons on one row
+            };
+            buttons.Controls.Add(_clear);
+            buttons.Controls.Add(_stop);
+
+            _status.AutoSize = true;
+            _status.Padding = new Padding(0);
+            _status.Anchor = AnchorStyles.Right;   // sticky right, vertically centred
+            _status.TextAlign = ContentAlignment.MiddleRight;
+
+            top.Controls.Add(buttons, 0, 0);
+            top.Controls.Add(_status, 1, 0);
 
             Controls.Add(_list);
             Controls.Add(top);
@@ -151,7 +184,7 @@ namespace AutoExporter.AdminPlugin
                     {
                         foreach (var r in records)
                         {
-                            if (r.RunId != Guid.Empty) _byRun[r.RunId] = r;
+                            if (r.RunId != Guid.Empty) _byRun[r.RunId] = Merge(r);
                             if (!string.IsNullOrEmpty(r.AgentHostname)) _agents.Add(r.AgentHostname);
                         }
                     }
@@ -163,6 +196,21 @@ namespace AutoExporter.AdminPlugin
                 PluginFileLog.Error("OnExecutionsReply failed: " + ex.Message);
             }
             return null;
+        }
+
+        // While a run is in flight the live progress ticks and the periodic store query both arrive as
+        // "Running" records for the same RunId. The stored one carries a stale Progress of 0, so do not
+        // let a Running update lower the progress we already show (it would flicker the bar back to 0).
+        // Caller holds _gate.
+        private ExecutionRecord Merge(ExecutionRecord incoming)
+        {
+            if (_byRun.TryGetValue(incoming.RunId, out var existing)
+                && IsRunning(existing) && IsRunning(incoming)
+                && incoming.Progress < existing.Progress)
+            {
+                return existing;
+            }
+            return incoming;
         }
 
         /// <summary>
@@ -253,34 +301,101 @@ namespace AutoExporter.AdminPlugin
 
             var friendly = AgentsUserControl.FriendlyNames();
 
+            // The list is rebuilt on every refresh, so remember which run is selected (and the scroll
+            // position) and restore them after, otherwise the periodic refresh drops the user's pick.
+            Guid selectedRunId = (_list.SelectedItems.Count > 0 && _list.SelectedItems[0].Tag is ExecutionRecord sel)
+                ? sel.RunId : Guid.Empty;
+            Guid topRunId = (_list.TopItem?.Tag is ExecutionRecord topr) ? topr.RunId : Guid.Empty;
+
             _list.BeginUpdate();
             _list.Items.Clear();
+            ListViewItem toSelect = null, toTop = null;
             foreach (var r in snapshot)
             {
                 var item = new ListViewItem(ToLocal(r.StartedUtc)) { Tag = r };
                 item.SubItems.Add(r.JobName ?? "");
                 item.SubItems.Add(AgentsUserControl.FriendlyName(r.AgentHostname, friendly));
                 item.SubItems.Add(OutcomeText(r));
+                item.SubItems.Add("");   // Progress, drawn as a bar in OnDrawSubItem
                 item.SubItems.Add(r.CameraCount.ToString(CultureInfo.InvariantCulture));
                 item.SubItems.Add(HumanSize(r.BytesWritten));
                 item.SubItems.Add(r.Trigger ?? "");
                 item.SubItems.Add(DetailText(r));
                 item.ForeColor = RowColor(r);
                 _list.Items.Add(item);
+
+                if (r.RunId != Guid.Empty && r.RunId == selectedRunId) toSelect = item;
+                if (r.RunId != Guid.Empty && r.RunId == topRunId) toTop = item;
             }
+
+            if (toSelect != null)
+            {
+                toSelect.Selected = true;
+                toSelect.Focused = true;
+            }
+            // Restore the scroll position last so the kept selection does not yank the view.
+            if (toTop != null) _list.TopItem = toTop;
             _list.EndUpdate();
 
             SetStatus($"{snapshot.Count} run(s) from {agentCount} agent(s). Last refreshed {NowLocal()}.");
             try { ExecutionsUpdated?.Invoke(snapshot); } catch { }
         }
 
-        // "Running 45%" while a run is in progress (the agent reports overall percent), else the outcome.
+        // Just the outcome word now ("Running", "Success", ...). The live percent is shown by the
+        // progress bar in the Progress column instead of being appended here.
         internal static string OutcomeText(ExecutionRecord r)
+            => r.Outcome ?? (r.Success ? "Success" : "Failed");
+
+        private static bool IsRunning(ExecutionRecord r)
+            => string.Equals(r.Outcome, "Running", StringComparison.OrdinalIgnoreCase);
+
+        // Plain text draw for normal cells plus a drawn progress bar for the Progress column of a
+        // running row, with grid lines redrawn to match the rest of the list.
+        private static readonly Pen GridPen = new Pen(Color.FromArgb(0xDA, 0xDA, 0xDA));
+        private const int ProgressCol = 4;
+
+        private void OnDrawSubItem(object sender, DrawListViewSubItemEventArgs e)
         {
-            var o = r.Outcome ?? (r.Success ? "Success" : "Failed");
-            return string.Equals(o, "Running", StringComparison.OrdinalIgnoreCase) && r.Progress > 0
-                ? $"Running {r.Progress}%"
-                : o;
+            // For column 0 the framework hands us the whole row bounds, so clip it to the column.
+            var bounds = e.Bounds;
+            if (e.ColumnIndex == 0 && _list.Columns.Count > 0)
+                bounds = new Rectangle(e.Bounds.Left, e.Bounds.Top, _list.Columns[0].Width, e.Bounds.Height);
+
+            bool selected = e.Item.Selected;
+            using (var bg = new SolidBrush(selected ? SystemColors.Highlight : SystemColors.Window))
+                e.Graphics.FillRectangle(bg, bounds);
+
+            var rec = e.Item.Tag as ExecutionRecord;
+            if (e.ColumnIndex == ProgressCol && rec != null && IsRunning(rec))
+            {
+                DrawProgressBar(e.Graphics, bounds, rec.Progress);
+            }
+            else
+            {
+                var fore = selected ? SystemColors.HighlightText : e.Item.ForeColor;
+                var textRect = Rectangle.Inflate(bounds, -2, 0);
+                TextRenderer.DrawText(e.Graphics, e.SubItem.Text ?? "", _list.Font, textRect, fore,
+                    TextFormatFlags.Left | TextFormatFlags.VerticalCenter | TextFormatFlags.EndEllipsis | TextFormatFlags.NoPrefix);
+            }
+
+            // Right and bottom grid lines, matching the built-in GridLines look.
+            e.Graphics.DrawLine(GridPen, bounds.Right - 1, bounds.Top, bounds.Right - 1, bounds.Bottom - 1);
+            e.Graphics.DrawLine(GridPen, bounds.Left, bounds.Bottom - 1, bounds.Right - 1, bounds.Bottom - 1);
+        }
+
+        private static void DrawProgressBar(Graphics g, Rectangle cell, int progress)
+        {
+            int pct = progress < 0 ? 0 : (progress > 100 ? 100 : progress);
+            var bar = Rectangle.Inflate(cell, -3, -4);
+            if (bar.Width <= 2 || bar.Height <= 2) return;
+
+            using (var track = new SolidBrush(Color.FromArgb(0xE6, 0xE6, 0xE6)))
+                g.FillRectangle(track, bar);
+            var fill = new Rectangle(bar.X, bar.Y, (int)(bar.Width * (pct / 100.0)), bar.Height);
+            using (var fb = new SolidBrush(Color.RoyalBlue))
+                g.FillRectangle(fb, fill);
+            using (var border = new Pen(Color.FromArgb(0xB0, 0xB0, 0xB0)))
+                g.DrawRectangle(border, bar);
         }
 
         private static string DetailText(ExecutionRecord r)

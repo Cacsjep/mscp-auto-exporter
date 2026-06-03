@@ -10,6 +10,8 @@
     <!-- Standalone service: it loads the Milestone SDK itself, so keep the runtime next to the exe -->
     <KeepMilestoneRuntime>true</KeepMilestoneRuntime>
     <UseWindowsForms>false</UseWindowsForms>
+    <!-- The timelapse encoder uses FFmpeg.AutoGen P/Invoke (unsafe pointers). -->
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
     <!-- Do NOT pin or binding-redirect System.Text.Json here. The Milestone SDK and its
          IdentityModel / Azure dependencies are tested against the System.Text.Json version they
          ship (8.0.5), and the standalone service loads the DLLs copied next to the exe. Forcing
@@ -22,6 +24,11 @@
   <ItemGroup>
     <PackageReference Include="MilestoneSystems.VideoOS.Platform" Version="26.1.2" />
     <PackageReference Include="MilestoneSystems.VideoOS.Platform.SDK" Version="26.1.2" />
+    <!-- Timelapse export: H.264 MP4 encoding via FFmpeg. AutoGen is the managed P/Invoke binding,
+         GPL ships the native av*.dll into the x64\ output subfolder (TimelapseEncoder looks there).
+         Same versions the Timelapse Smart Client plugin is built against. -->
+    <PackageReference Include="FFmpeg.AutoGen" Version="8.0.0.1" />
+    <PackageReference Include="FFmpeg.GPL" Version="20260312.1.0" />
   </ItemGroup>
 
   <ItemGroup>
@@ -29,6 +36,8 @@
     <Reference Include="System.Configuration.Install" />
     <!-- Application.DoEvents pumps the Win32 message loop the export pipeline needs -->
     <Reference Include="System.Windows.Forms" />
+    <!-- GDI+ bitmaps for decoding JPEG frames and burning the timestamp overlay -->
+    <Reference Include="System.Drawing" />
   </ItemGroup>
 
   <ItemGroup>
