@@ -99,6 +99,45 @@ namespace AutoExporter.Contracts.Tests
         }
 
         [Fact]
+        public void GenerateEventBased_TakesFirstFramePlusInterval_CappedPerEvent()
+        {
+            // Two clips far apart so they stay separate events.
+            var segments = new List<RecordingSegment>
+            {
+                Seg("2026-06-01 10:00:00", "2026-06-01 10:01:00"),  // 60s clip
+                Seg("2026-06-01 14:00:00", "2026-06-01 14:00:05"),  // 5s clip
+            };
+
+            // every 10s, at most 3 frames per event, at least 1, no merging.
+            var stamps = TimestampGenerator.GenerateEventBased(
+                segments, TimeSpan.FromSeconds(10), maxPerEvent: 3, minPerEvent: 1, mergeGap: TimeSpan.Zero);
+
+            // Clip 1: 10:00:00, :10, :20 (capped at 3). Clip 2: just 14:00:00.
+            Assert.Equal(4, stamps.Count);
+            Assert.Equal(DateTime.Parse("2026-06-01 10:00:00"), stamps[0]);
+            Assert.Equal(DateTime.Parse("2026-06-01 10:00:20"), stamps[2]);
+            Assert.Equal(DateTime.Parse("2026-06-01 14:00:00"), stamps[3]);
+        }
+
+        [Fact]
+        public void GenerateEventBased_MergesClipsWithinGap_IntoOneEvent()
+        {
+            var segments = new List<RecordingSegment>
+            {
+                Seg("2026-06-01 10:00:00", "2026-06-01 10:00:10"),
+                Seg("2026-06-01 10:00:13", "2026-06-01 10:00:30"),  // 3s gap -> merged with 5s mergeGap
+            };
+
+            var stamps = TimestampGenerator.GenerateEventBased(
+                segments, TimeSpan.FromSeconds(10), maxPerEvent: 10, minPerEvent: 1, mergeGap: TimeSpan.FromSeconds(5));
+
+            // One merged event 10:00:00..10:00:30 -> 00, 10, 20, 30
+            Assert.Equal(4, stamps.Count);
+            Assert.Equal(DateTime.Parse("2026-06-01 10:00:00"), stamps[0]);
+            Assert.Equal(DateTime.Parse("2026-06-01 10:00:30"), stamps[3]);
+        }
+
+        [Fact]
         public void Covers_FindsTimestampInsideASegment()
         {
             var segments = new List<RecordingSegment>

@@ -49,6 +49,69 @@ namespace AutoExporter.Contracts
         }
 
         /// <summary>
+        /// Event-based mode: merge near-adjacent segments into events, then per event emit the first
+        /// frame plus one frame every <paramref name="interval"/>, capped at
+        /// <paramref name="maxPerEvent"/> and filled up to <paramref name="minPerEvent"/>. Good for
+        /// turning each recorded motion clip into a few representative frames. Ported from the
+        /// Timelapse Smart Client plugin.
+        /// </summary>
+        public static List<DateTime> GenerateEventBased(
+            IReadOnlyList<RecordingSegment> segments,
+            TimeSpan interval,
+            int maxPerEvent,
+            int minPerEvent,
+            TimeSpan mergeGap)
+        {
+            var list = new List<DateTime>();
+            if (segments == null || segments.Count == 0) return list;
+            if (interval <= TimeSpan.Zero) interval = TimeSpan.FromSeconds(1);
+            if (maxPerEvent < 1) maxPerEvent = 1;
+            if (minPerEvent < 1) minPerEvent = 1;
+            if (minPerEvent > maxPerEvent) minPerEvent = maxPerEvent;
+            if (mergeGap < TimeSpan.Zero) mergeGap = TimeSpan.Zero;
+
+            var merged = MergeAdjacent(segments, mergeGap);
+
+            foreach (var ev in merged)
+            {
+                // Always include the first frame.
+                var eventStamps = new List<DateTime> { ev.Start };
+
+                // Walk at 'interval' until we hit the cap or run off the end.
+                var t = ev.Start + interval;
+                while (t <= ev.End && eventStamps.Count < maxPerEvent)
+                {
+                    eventStamps.Add(t);
+                    t += interval;
+                }
+
+                // If we did not reach minPerEvent (very short event), distribute evenly inside.
+                if (eventStamps.Count < minPerEvent)
+                {
+                    eventStamps.Clear();
+                    int n = Math.Min(minPerEvent, maxPerEvent);
+                    if (n == 1)
+                    {
+                        eventStamps.Add(ev.Start);
+                    }
+                    else
+                    {
+                        var span = ev.End - ev.Start;
+                        for (int i = 0; i < n; i++)
+                        {
+                            var frac = (double)i / (n - 1);
+                            eventStamps.Add(ev.Start + TimeSpan.FromTicks((long)(span.Ticks * frac)));
+                        }
+                    }
+                }
+
+                list.AddRange(eventStamps);
+            }
+
+            return list;
+        }
+
+        /// <summary>
         /// Merges segments whose gap is &lt;= <paramref name="mergeGap"/> into one. Assumes input
         /// sorted by Start.
         /// </summary>

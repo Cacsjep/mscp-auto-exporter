@@ -24,6 +24,7 @@ namespace AutoExporter.Contracts
         public string AgentHostname = "";     // which registered agent runs this job
         public string Format = "XProtect";   // "XProtect" | "AVI" | "Timelapse"
         public bool Encrypt;
+        public bool Sign;                      // XProtect: sign the export (off by default)
         public string Password = "";
         // Audio is always exported. The Smart Client ™ Player ("include player") is intentionally
         // not offered: the SDK can only bundle the player when the export runs inside the Smart
@@ -35,11 +36,20 @@ namespace AutoExporter.Contracts
         public List<JobTarget> Targets = new List<JobTarget>();
 
         // ----- Timelapse options (Format = "Timelapse") -----
-        // One MP4 per camera. The agent samples one recorded frame per TimelapseIntervalSeconds of
-        // footage (recording gaps are skipped) and plays them back at TimelapseFps. When the daily
-        // window is enabled, only footage inside DailyStart..DailyEnd (local time of day) is used.
-        public int TimelapseIntervalSeconds = 60;
+        // One MP4 per camera, played back at TimelapseFps. Recording gaps are always skipped. When
+        // the daily window is enabled, only footage inside DailyStart..DailyEnd (local time of day)
+        // is used. Two capture modes:
+        //   Continuous  - sample one frame every TimelapseIntervalSeconds of footage.
+        //   EventBased  - per recorded clip (segments merged when closer than the merge gap) take
+        //                 the first frame plus one every TimelapseEventIntervalSeconds, between
+        //                 TimelapseEventMinFrames and TimelapseEventMaxFrames frames.
+        public string TimelapseMode = "Continuous";   // "Continuous" | "EventBased"
         public int TimelapseFps = 24;
+        public int TimelapseIntervalSeconds = 60;      // Continuous: seconds of footage per frame
+        public int TimelapseEventIntervalSeconds = 10; // EventBased: seconds between frames in a clip
+        public int TimelapseEventMaxFrames = 10;
+        public int TimelapseEventMinFrames = 1;
+        public int TimelapseEventMergeGapSeconds = 2;  // clips closer than this count as one event
         public bool TimelapseDailyEnabled;
         public string TimelapseDailyStart = "08:00";
         public string TimelapseDailyEnd = "17:00";
@@ -51,13 +61,19 @@ namespace AutoExporter.Contracts
             public const string AgentHostname = "AgentHostname";
             public const string Format = "Format";
             public const string Encrypt = "Encrypt";
+            public const string Sign = "Sign";
             public const string Password = "Password";
             public const string IncludeAudio = "IncludeAudio";
             public const string Timestamp = "Timestamp";
             public const string RangeValue = "RangeValue";
             public const string RangeUnit = "RangeUnit";
-            public const string TimelapseIntervalSeconds = "TimelapseIntervalSeconds";
+            public const string TimelapseMode = "TimelapseMode";
             public const string TimelapseFps = "TimelapseFps";
+            public const string TimelapseIntervalSeconds = "TimelapseIntervalSeconds";
+            public const string TimelapseEventIntervalSeconds = "TimelapseEventIntervalSeconds";
+            public const string TimelapseEventMaxFrames = "TimelapseEventMaxFrames";
+            public const string TimelapseEventMinFrames = "TimelapseEventMinFrames";
+            public const string TimelapseEventMergeGapSeconds = "TimelapseEventMergeGapSeconds";
             public const string TimelapseDailyEnabled = "TimelapseDailyEnabled";
             public const string TimelapseDailyStart = "TimelapseDailyStart";
             public const string TimelapseDailyEnd = "TimelapseDailyEnd";
@@ -74,13 +90,19 @@ namespace AutoExporter.Contracts
                 [Keys.AgentHostname] = AgentHostname ?? "",
                 [Keys.Format] = Format ?? "XProtect",
                 [Keys.Encrypt] = Encrypt ? "Yes" : "No",
+                [Keys.Sign] = Sign ? "Yes" : "No",
                 [Keys.Password] = Password ?? "",
                 [Keys.IncludeAudio] = IncludeAudio ? "Yes" : "No",
                 [Keys.Timestamp] = Timestamp ? "Yes" : "No",
                 [Keys.RangeValue] = RangeValue.ToString(CultureInfo.InvariantCulture),
                 [Keys.RangeUnit] = RangeUnit ?? "Days",
-                [Keys.TimelapseIntervalSeconds] = TimelapseIntervalSeconds.ToString(CultureInfo.InvariantCulture),
+                [Keys.TimelapseMode] = TimelapseMode ?? "Continuous",
                 [Keys.TimelapseFps] = TimelapseFps.ToString(CultureInfo.InvariantCulture),
+                [Keys.TimelapseIntervalSeconds] = TimelapseIntervalSeconds.ToString(CultureInfo.InvariantCulture),
+                [Keys.TimelapseEventIntervalSeconds] = TimelapseEventIntervalSeconds.ToString(CultureInfo.InvariantCulture),
+                [Keys.TimelapseEventMaxFrames] = TimelapseEventMaxFrames.ToString(CultureInfo.InvariantCulture),
+                [Keys.TimelapseEventMinFrames] = TimelapseEventMinFrames.ToString(CultureInfo.InvariantCulture),
+                [Keys.TimelapseEventMergeGapSeconds] = TimelapseEventMergeGapSeconds.ToString(CultureInfo.InvariantCulture),
                 [Keys.TimelapseDailyEnabled] = TimelapseDailyEnabled ? "Yes" : "No",
                 [Keys.TimelapseDailyStart] = TimelapseDailyStart ?? "08:00",
                 [Keys.TimelapseDailyEnd] = TimelapseDailyEnd ?? "17:00",
@@ -104,13 +126,19 @@ namespace AutoExporter.Contracts
                 AgentHostname = Get(p, Keys.AgentHostname, ""),
                 Format = Get(p, Keys.Format, "XProtect"),
                 Encrypt = IsYes(Get(p, Keys.Encrypt, "No")),
+                Sign = IsYes(Get(p, Keys.Sign, "No")),
                 Password = Get(p, Keys.Password, ""),
                 IncludeAudio = IsYes(Get(p, Keys.IncludeAudio, "Yes")),
                 Timestamp = IsYes(Get(p, Keys.Timestamp, "No")),
                 RangeValue = GetInt(p, Keys.RangeValue, 1),
                 RangeUnit = Get(p, Keys.RangeUnit, "Days"),
-                TimelapseIntervalSeconds = GetInt(p, Keys.TimelapseIntervalSeconds, 60),
+                TimelapseMode = Get(p, Keys.TimelapseMode, "Continuous"),
                 TimelapseFps = GetInt(p, Keys.TimelapseFps, 24),
+                TimelapseIntervalSeconds = GetInt(p, Keys.TimelapseIntervalSeconds, 60),
+                TimelapseEventIntervalSeconds = GetInt(p, Keys.TimelapseEventIntervalSeconds, 10),
+                TimelapseEventMaxFrames = GetInt(p, Keys.TimelapseEventMaxFrames, 10),
+                TimelapseEventMinFrames = GetInt(p, Keys.TimelapseEventMinFrames, 1),
+                TimelapseEventMergeGapSeconds = GetInt(p, Keys.TimelapseEventMergeGapSeconds, 2),
                 TimelapseDailyEnabled = IsYes(Get(p, Keys.TimelapseDailyEnabled, "No")),
                 TimelapseDailyStart = Get(p, Keys.TimelapseDailyStart, "08:00"),
                 TimelapseDailyEnd = Get(p, Keys.TimelapseDailyEnd, "17:00"),

@@ -15,8 +15,9 @@ namespace AutoExporter.AdminPlugin
         {
             Text = title;
             Width = 560;
-            Height = 560;
+            Height = 660;
             StartPosition = FormStartPosition.CenterParent;
+            FormBorderStyle = FormBorderStyle.FixedDialog;   // not resizable
             MinimizeBox = false;
             MaximizeBox = false;
             ShowInTaskbar = false;

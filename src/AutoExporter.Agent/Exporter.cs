@@ -282,7 +282,7 @@ namespace AutoExporter.Agent
                     Encryption = job.Encrypt,
                     EncryptionStrength = EncryptionStrength.AES128,
                     Password = job.Password ?? "",
-                    SignExport = true,
+                    SignExport = job.Sign,
                     PreventReExport = false,
                     IncludeBookmarks = true,
                     FailOnInvalidSignature = false
@@ -394,8 +394,9 @@ namespace AutoExporter.Agent
             // local time (convert the run's UTC range once here).
             var localStart = startUtc.ToLocalTime();
             var localEnd = endUtc.ToLocalTime();
-            var interval = TimeSpan.FromSeconds(Math.Max(1, job.TimelapseIntervalSeconds));
             int fps = job.TimelapseFps <= 0 ? 24 : job.TimelapseFps;
+            bool eventMode = string.Equals(job.TimelapseMode, "EventBased", StringComparison.OrdinalIgnoreCase);
+            Log.Info($"Timelapse mode={(eventMode ? "EventBased" : "Continuous")} fps={fps} daily={job.TimelapseDailyEnabled}");
 
             TimeSpan dailyStart = TimeSpan.Zero, dailyEnd = TimeSpan.Zero;
             if (job.TimelapseDailyEnabled &&
@@ -421,7 +422,17 @@ namespace AutoExporter.Agent
                     var segments = q.GetRecordingSegments(localStart, localEnd);
                     if (job.TimelapseDailyEnabled)
                         segments = TimestampGenerator.ClipToDailyWindow(segments, dailyStart, dailyEnd);
-                    stamps = TimestampGenerator.GenerateContinuous(segments, interval);
+
+                    stamps = eventMode
+                        ? TimestampGenerator.GenerateEventBased(
+                            segments,
+                            TimeSpan.FromSeconds(Math.Max(1, job.TimelapseEventIntervalSeconds)),
+                            job.TimelapseEventMaxFrames,
+                            job.TimelapseEventMinFrames,
+                            TimeSpan.FromSeconds(Math.Max(0, job.TimelapseEventMergeGapSeconds)))
+                        : TimestampGenerator.GenerateContinuous(
+                            segments,
+                            TimeSpan.FromSeconds(Math.Max(1, job.TimelapseIntervalSeconds)));
                 }
                 if (stamps.Count == 0)
                 {
